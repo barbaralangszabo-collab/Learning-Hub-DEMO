@@ -1,0 +1,1603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>How Do I Get There? – London Directions</title>
+
+<link rel="preconnect" href="https://commons.wikimedia.org" />
+<link rel="preconnect" href="https://upload.wikimedia.org" crossorigin />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Comfortaa:wght@400;600;700&display=swap" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+  /* Layout: one-line dashboard (title · walks · progress · Flashcards · Quiz · HU) →
+     map practice straight away (map + notes left, destination card + scrolling phrases right) →
+     quiz, one question at a time. Flashcards open in a pop-up window. Phones: one column. */
+  :root {
+    --accent: #48E8CC;
+    --accent-soft: #DCF8F1;
+    --accent-ink: #11806F;
+    --accent-dark: #0D4D43;
+    --cream: #F4F1EA;        /* the map's land colour */
+    --card: #FFFEFB;
+    --ink: #36332F;
+    --ink-soft: #77716A;
+    --line: #E5E0D5;
+
+    --pink: #F9E4E1;   --pink-ink: #A8564C;   --pink-line: #EDC6C0;   /* soft brick, like the map's red roads */
+    --blue: #E0ECF8;   --blue-ink: #3E6E9E;   --blue-line: #B9D2EC;   /* the Thames and the park lakes */
+    --lilac: #ECE8F4;  --lilac-ink: #6D5A96;  --lilac-line: #D5CCE6;
+    --butter: #FFF1CC; --butter-ink: #8C6410; --butter-line: #F2D27E; /* light amber */
+    --sage: #E4EFDA;   --sage-line: #BCD5A4;  --sage-ink: #4F7339;    /* the parks on the map */
+
+    --title-gradient: linear-gradient(95deg, #1FC7AB 0%, #48E8CC 30%, #6FB8EC 65%, #B47FD0 100%);
+
+    --font-display: "Dancing Script", "Brush Script MT", cursive;
+    --font-body: "Comfortaa", "Trebuchet MS", system-ui, sans-serif;
+
+    --radius: 20px;
+    --shadow: 0 6px 22px rgba(120, 100, 80, .08);
+    --map-h: 600px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { font-size: 125%; }   /* 20px base */
+  html, body { margin: 0; }
+  body { font-family: var(--font-body); color: var(--ink); background: var(--cream); font-size: 1rem; line-height: 1.5; -webkit-text-size-adjust: 100%; }
+  button, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  .hu-text { display: none; color: var(--ink-soft); font-size: .85em; }
+  body.show-hu .hu-text { display: block; }
+
+  /* ---------- dashboard ---------- */
+  .title-panel { background: linear-gradient(100deg, #FFFCF5 0%, #FAF4E8 45%, #F1E7D6 100%); border-bottom: 1px solid var(--line); }
+  .title-pic { display: block; height: 150px; width: auto; max-width: 140px; object-fit: cover; border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+  .title-pic-link { flex: none; align-self: center; }
+  .title-inner { max-width: 1480px; margin: 0 auto; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; align-items: center; gap: 6px 22px; flex-wrap: wrap; }
+  .title-inner .sub { font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-soft); }
+  .dash { background: var(--card); border-bottom: 1px solid var(--line); box-shadow: 0 2px 14px rgba(120,100,80,.05); }
+  .dash-inner { max-width: 1480px; margin: 0 auto; padding-block: 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; align-items: center; justify-content: space-between; gap: 10px 18px; flex-wrap: wrap; }
+  .title-block { line-height: 1; flex: none; }
+  .app-title {
+    margin: 0; font-family: var(--font-display); font-weight: 700; font-size: clamp(2.6rem, 4.8vw, 4rem); line-height: 1.05;
+    padding: 0 .08em .06em 0;
+    background: linear-gradient(95deg, #0E9C84 0%, #49E8CC 55%, #22BFA5 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .title-block .sub { display: block; margin-top: 2px; font-size: .68rem; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-soft); }
+
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; flex: 1 1 auto; justify-content: flex-start; }
+  .tab { display: flex; align-items: center; gap: 10px; padding: 10px 24px; border-radius: 999px; background: var(--card); border: 1.5px solid var(--line); font-weight: 700; font-size: 1.15rem; text-align: left; line-height: 1.2; transition: transform .15s, background .15s; }
+  .tab:hover { transform: translateY(-1px); border-color: #F2C25C; }
+  .tab img { width: 104px; height: 74px; object-fit: cover; border-radius: 16px; flex: none; }
+  .tab .lvl { font-size: .7rem; font-weight: 700; color: var(--ink-soft); background: var(--cream); border-radius: 999px; padding: 1px 7px; }
+  .tab[aria-selected="true"] { background: #FFE6A8; border-color: #F2C25C; color: #6B4700; }
+  .tab[aria-selected="true"] .lvl { color: var(--accent-dark); background: rgba(255,255,255,.55); }
+  .tab span { white-space: nowrap; }
+  .tab .done-mark { display: none; width: 20px; height: 20px; border-radius: 50%; background: var(--card); color: var(--accent-ink); font-size: .75rem; place-items: center; }
+  .tab.done .done-mark { display: grid; }
+
+  .dash-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .progress-pill { display: flex; align-items: center; gap: 8px; background: var(--accent-soft); border: 1.5px solid var(--accent); padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: .88rem; }
+  .progress-pill .count { color: var(--accent-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .progress-dots { display: flex; gap: 4px; }
+  .progress-dots i { width: 9px; height: 9px; border-radius: 50%; background: #fff; border: 1.5px solid var(--accent); }
+  .progress-dots i.on { background: var(--accent); }
+  .dash-btn { border-radius: 999px; padding: 7px 15px; font-weight: 700; font-size: .88rem; border: 1.5px solid var(--lilac-line); background: var(--lilac); color: var(--lilac-ink); }
+  .dash-btn.quiz { border-color: var(--butter-line); background: var(--butter); color: var(--butter-ink); }
+  .hu-btn { border: 1.5px solid var(--pink-line); background: var(--pink); color: var(--pink-ink); padding: 7px 14px; border-radius: 999px; font-weight: 700; font-size: .88rem; }
+  @media (min-width: 1240px) {
+    .dash-inner { flex-wrap: nowrap; }
+    .tabs { flex-wrap: nowrap; min-width: 0; }
+    .dash-right { flex-wrap: nowrap; flex: none; }
+  }
+  .howto-drop { position: relative; }
+  .howto-drop summary { list-style: none; cursor: pointer; }
+  .howto-drop summary::-webkit-details-marker { display: none; }
+  .dash-btn.howto { border-color: var(--sage-line); background: var(--sage); color: var(--sage-ink); }
+  .howto-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 2500; width: min(440px, calc(100vw - 32px)); background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 16px 40px rgba(0,0,0,.14); padding: 14px 18px 16px; }
+  .howto-panel h2 { margin: 0 0 8px; font-family: var(--font-display); font-size: 1.8rem; }
+  .howto-panel { background: linear-gradient(160deg, #FFFCF5, #FAF4E8); }
+  .howto-panel h2 { color: var(--accent-ink); }
+  .howto-panel ol { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 8px; font-size: .92rem; line-height: 1.45; }
+  .howto-panel li { counter-increment: step; position: relative; padding: 9px 12px 9px 50px; border-radius: 14px; background: var(--c-bg); border-left: 5px solid var(--c-ink); }
+  .howto-panel li::before { content: counter(step); position: absolute; left: 12px; top: 9px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--c-ink); color: #fff; font-weight: 700; font-size: .85rem; }
+  .howto-panel li b { color: var(--c-ink); }
+  .howto-panel li:nth-child(1) { --c-bg: #FFF1CC; --c-ink: #B98512; }
+  .howto-panel li:nth-child(2) { --c-bg: var(--lilac); --c-ink: var(--lilac-ink); }
+  .howto-panel li:nth-child(3) { --c-bg: var(--accent-soft); --c-ink: var(--accent-ink); }
+  .howto-panel li:nth-child(4) { --c-bg: var(--pink); --c-ink: var(--pink-ink); }
+  .howto-panel li:nth-child(5) { --c-bg: var(--blue); --c-ink: var(--blue-ink); }
+  .howto-panel li:nth-child(6) { --c-bg: var(--sage); --c-ink: var(--sage-ink); }
+  @media (max-width: 1239px) { .howto-panel { right: auto; left: 0; } }
+  .hu-btn[aria-pressed="true"] { background: var(--pink-ink); color: #fff; border-color: var(--pink-ink); }
+
+  /* ---------- page ---------- */
+  .page { max-width: 1480px; margin: 0 auto; padding-block: 12px max(24px, env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 14px; }
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--line); }
+  .section { padding: 14px 16px; display: grid; gap: 10px; }
+  .script-h { font-family: var(--font-display); font-weight: 700; font-size: 2.4rem; line-height: 1.1; margin: 0; }
+  .intro { background: var(--sage); border-left: 5px solid var(--sage-line); border-radius: 12px; padding: 8px 14px; font-size: .92rem; }
+
+  .btn { border-radius: 999px; padding: 8px 17px; font-weight: 700; font-size: .9rem; border: 2px solid var(--accent); background: var(--card); color: var(--accent-ink); }
+  .btn.solid { background: var(--accent); color: var(--accent-dark); }
+  .btn.soft { border-color: var(--line); color: var(--ink); }
+  .btn.pink { border-color: var(--pink-line); background: var(--pink); color: var(--pink-ink); }
+  .btn:hover:not(:disabled) { filter: brightness(.97); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  /* map section head */
+  .map-head { margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px 14px; flex-wrap: wrap; }
+  .modes { display: inline-flex; background: var(--cream); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 3px; flex-wrap: wrap; }
+  .mode { border: 0; background: none; border-radius: 999px; padding: 7px 15px; font-weight: 700; font-size: .88rem; color: var(--ink-soft); }
+  .mode[aria-pressed="true"] { background: var(--accent); color: var(--accent-dark); }
+  .walk-stats { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .88rem; color: var(--ink-soft); }
+  .walk-stats b { color: var(--ink); }
+  .chip-stat { background: var(--cream); border: 1px solid var(--line); border-radius: 999px; padding: 2px 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .chip-stat.ok { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+  .dot { width: 11px; height: 11px; border-radius: 50%; flex: none; display: inline-block; }
+  .dot.start { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  /* main grid */
+  .main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(340px, 1fr); gap: 14px; align-items: start; }
+  .map-col { display: grid; gap: 10px; min-width: 0; }
+  .chips-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .dest { border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 12px 6px 9px; font-size: .9rem; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; transition: transform .15s, border-color .15s; }
+  .dest:hover { transform: translateY(-1px); border-color: var(--accent); }
+  .tag { width: 10px; height: 10px; border-radius: 50%; flex: none; display: inline-block; }
+  .k-landmark { background: var(--butter-ink); } .k-park { background: var(--sage-ink); } .k-square { background: var(--blue-ink); } .k-museum { background: var(--lilac-ink); }
+  .dest .tick { color: var(--accent-ink); font-size: .8rem; }
+  .dest[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-dark); }
+  .dest[aria-pressed="true"] .tick { color: var(--accent-dark); }
+  .dest.random { background: var(--butter); border-color: var(--butter-line); color: var(--butter-ink); }
+  .legend { position: absolute; left: 8px; bottom: 8px; z-index: 500; display: flex; gap: 10px; flex-wrap: wrap; font-size: .72rem; color: var(--ink-soft); background: rgba(255,253,249,.92); border-radius: 999px; padding: 4px 11px; max-width: calc(100% - 120px); }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+
+  .map-wrap { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); }
+  #map { height: var(--map-h); background: #F2EFE9; }
+
+  .side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .side > .mode-help { flex: none; }
+  .side > .dest-card { flex: none; }
+  .side > .phrases { flex: none; margin-top: 14px; }
+  .mode-help { font-size: .92rem; }
+  .mode-help summary { cursor: pointer; font-weight: 700; color: var(--sage-ink); list-style: none; display: flex; align-items: center; gap: 8px; }
+  .mode-help summary::-webkit-details-marker { display: none; }
+  .mode-help summary::after { content: "▾"; margin-left: auto; transition: transform .2s; }
+  .mode-help[open] summary::after { transform: rotate(180deg); }
+  .mode-help[open] summary { margin-bottom: 6px; }
+  .panel { border-radius: 16px; border: 1px solid var(--line); background: var(--card); padding: 12px 14px; }
+
+  /* destination card: picture beside the text to save height */
+  .dest-card { display: grid; gap: 10px; }
+  .dc-top { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: center; }
+  .pic { border-radius: 12px; background: linear-gradient(160deg, #F2FBF9, var(--cream)); overflow: hidden; }
+  .pic svg { display: block; width: 100%; height: auto; }
+  .pic img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+  .pic-btn { position: relative; display: block; width: 100%; border: 0; padding: 0; background: none; border-radius: 12px; overflow: hidden; cursor: zoom-in; }
+  .pic-btn .zoom { position: absolute; right: 10px; bottom: 10px; background: rgba(255,253,249,.92); color: var(--ink); border-radius: 999px; padding: 4px 12px; font-size: .8rem; font-weight: 700; }
+  .pic.small { max-width: 170px; }
+  .pic.own { background: #FBF8F2; }
+  .pic.own img { aspect-ratio: auto; object-fit: contain; }
+  .img-modal .img-box { background: #FBF8F2; border-radius: 18px; }
+  .pop-photo { display: block; margin-top: 8px; }
+  /* whole photo, in its own shape: wide photos get full width, tall ones (Big Ben, Nelson's Column) get full height */
+  .pop-pic { display: block; border-radius: 10px; cursor: zoom-in; margin: 0 auto; background: var(--cream); }
+  .leaflet-popup-content a.pop-credit { display: block; margin-top: 4px; font-size: 11px; color: var(--ink-soft); text-decoration: none; }
+  .img-modal .img-box { position: relative; max-width: min(960px, 100%); max-height: 100%; }
+  .img-modal img { display: block; width: min(960px, calc(100vw - 32px)); max-width: 100%; height: auto; max-height: calc(100dvh - 40px); object-fit: contain; border-radius: 18px; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+  .img-modal .close-btn { position: absolute; top: 10px; right: 10px; background: var(--card); }
+  .example mark { background: rgba(72, 232, 204, .38); color: inherit; border-radius: 4px; padding: 0 2px; }
+  .dc-name { font-size: 1.4rem; font-weight: 700; margin: 0; line-height: 1.25; }
+  .dc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .badge { border-radius: 999px; padding: 2px 10px; font-size: .72rem; font-weight: 700; letter-spacing: .03em; text-transform: capitalize; }
+  .badge.easy { background: var(--sage); color: var(--sage-ink); }
+  .badge.medium { background: var(--butter); color: var(--butter-ink); }
+  .badge.hard { background: var(--pink); color: var(--pink-ink); }
+  .dc-fact { margin: 0 0 6px; font-size: .88rem; color: var(--ink-soft); }
+  .stats { display: flex; gap: 6px; flex-wrap: wrap; }
+  .stat { background: var(--accent-soft); color: var(--accent-ink); border-radius: 999px; padding: 2px 10px; font-weight: 700; font-size: .78rem; font-variant-numeric: tabular-nums; }
+  .example { background: var(--butter); border-radius: 12px; padding: 10px 13px; font-size: .95rem; line-height: 1.55; }
+  .example b { display: block; font-size: .75rem; color: var(--butter-ink); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 3px; }
+  .empty { color: var(--ink-soft); font-size: .95rem; margin: 0; }
+  .empty b { color: var(--ink); }
+  .steps-mini { margin: 0; padding-left: 1.2em; font-size: .92rem; display: grid; gap: 3px; }
+  .result { border-radius: 12px; padding: 8px 13px; font-weight: 700; font-size: .95rem; }
+  .result.good { background: var(--accent-soft); color: var(--accent-ink); }
+  .result.bad { background: var(--pink); color: var(--pink-ink); }
+  .secret { border: 2px dashed var(--pink-line); border-radius: 12px; padding: 10px; display: grid; gap: 8px; background: #FFF8FA; }
+
+  /* phrases: scroll inside their own panel */
+  .phrases { display: flex; flex-direction: column; min-height: 0; padding: 0; overflow: hidden; }
+  .phrases-head { padding: 12px 14px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 14px; }
+  .phrases-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .phrases-title h3 { margin: 0; font-family: var(--font-display); font-size: 2.1rem; line-height: 1; }
+  .level { font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
+  .roles { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: .95rem; }
+  .role { border-radius: 999px; padding: 6px 14px; font-weight: 700; }
+  .role.ask { background: var(--blue); color: var(--blue-ink); }
+  .role.give { background: var(--pink); color: var(--pink-ink); }
+  .swap-btn { margin-left: auto; border: 1.5px solid var(--accent); background: var(--accent-soft); color: var(--accent-ink); border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: .92rem; }
+  .phrases-scroll { overflow-y: auto; padding: 10px 14px 14px; display: grid; gap: 10px; align-content: start; min-height: 0; overscroll-behavior: contain; }
+  .bank { border-radius: 14px; padding: 10px; }
+  .bank.ask { background: var(--blue); } .bank.give { background: var(--pink); } .bank.prep { background: var(--lilac); } .bank.keys { background: var(--accent-soft); }
+  .bank summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.12rem; padding: 4px 2px; border-radius: 10px; }
+  .bank summary::-webkit-details-marker { display: none; }
+  .bank summary::after { content: "▾"; margin-left: auto; font-size: 1.1rem; transition: transform .2s; }
+  .bank[open] summary::after { transform: rotate(180deg); }
+  .bank[open] summary { margin-bottom: 8px; }
+  .bank.ask summary { color: var(--blue-ink); } .bank.give summary { color: var(--pink-ink); } .bank.prep summary { color: var(--lilac-ink); } .bank.keys summary { color: var(--accent-ink); }
+  .bank .count { background: var(--card); border-radius: 999px; padding: 0 9px; font-size: .75rem; font-variant-numeric: tabular-nums; }
+  .keys-empty { margin: 0; font-size: .9rem; color: var(--ink-soft); }
+  .bank h4 { margin: 0 0 6px; font-size: .9rem; }
+  .bank.ask h4 { color: var(--blue-ink); } .bank.give h4 { color: var(--pink-ink); } .bank.prep h4 { color: var(--lilac-ink); }
+  .bank ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .bank li { background: var(--card); border: 1.5px solid transparent; border-radius: 999px; padding: 6px 12px; font-size: .92rem; line-height: 1.3; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; transition: border-color .15s, background .15s, transform .1s; }
+  .bank.ask li:hover { border-color: var(--blue-line); } .bank.give li:hover { border-color: var(--pink-line); } .bank.prep li:hover { border-color: var(--lilac-line); }
+  .bank li:active { transform: scale(.97); }
+  .bank li.added { background: var(--accent); color: var(--accent-dark); }
+  .scroll-hint { text-align: center; font-size: .72rem; color: var(--ink-soft); padding: 4px; border-top: 1px solid var(--line); }
+
+  .notes { display: grid; gap: 8px; }
+  .notes-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .notes-head label { font-weight: 700; }
+  .side.order-first > .mode-help { order: -2; }
+  .side.order-first > .dest-card { order: -1; }
+  .ptabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ptab { border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 7px 14px; font-weight: 700; font-size: .92rem; }
+  .ptab:hover { border-color: #F2C25C; }
+  .ptab.on { background: #FFE6A8; border-color: #F2C25C; color: #6B4700; }
+  .walkbox, .gapbox { display: grid; gap: 10px; }
+  .walk-steps { margin: 0; padding-left: 1.4em; display: grid; gap: 6px; }
+  .walk-steps li { padding: 6px 10px; border-radius: 10px; line-height: 1.45; transition: background .2s; }
+  .walk-steps li.now { background: #FFE6A8; font-weight: 700; }
+  .walk-steps li.done { color: var(--ink-soft); }
+  .walk-steps li::marker { color: var(--accent-ink); font-weight: 700; }
+  .read-aloud { display: inline-flex; align-items: center; gap: 6px; font-size: .88rem; color: var(--ink-soft); }
+  .walker { width: 34px; height: 34px; border-radius: 50%; background: #FFE6A8; border: 3px solid #fff; box-shadow: 0 3px 10px rgba(0,0,0,.25); display: grid; place-items: center; font-size: 18px; }
+  .gap-help { margin: 0; font-size: .9rem; color: var(--ink-soft); }
+  .gap-bank { display: flex; flex-wrap: wrap; gap: 6px; }
+  .gap-bank span { background: var(--lilac); color: var(--lilac-ink); border-radius: 999px; padding: 3px 11px; font-weight: 700; font-size: .88rem; }
+  .gap-text { margin: 0; line-height: 2.1; font-size: 1rem; background: var(--butter); border-radius: 12px; padding: 10px 13px; }
+  .gap { font: inherit; font-size: .95rem; border: 0; border-bottom: 2px solid var(--butter-ink); background: #fff; border-radius: 6px 6px 0 0; padding: 1px 6px; margin: 0 2px; text-align: center; color: var(--ink); }
+  .gap:focus { outline: 2px solid var(--accent); }
+  .gap.right { background: var(--accent-soft); border-bottom-color: var(--accent-ink); }
+  .gap.wrong { background: var(--pink); border-bottom-color: var(--pink-ink); }
+  .notes-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .check-btn { border: 1.5px solid var(--accent); background: var(--accent-soft); color: var(--accent-ink); border-radius: 999px; padding: 4px 13px; font-size: .85rem; font-weight: 700; }
+  .kw-result { display: grid; gap: 8px; }
+  .kw-result p { margin: 0; font-weight: 700; font-size: .95rem; }
+  .kw-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .kw { border-radius: 999px; padding: 4px 11px; font-size: .88rem; font-weight: 600; }
+  .kw.yes { background: var(--accent-soft); color: var(--accent-ink); }
+  .kw.no { background: var(--pink); color: var(--pink-ink); }
+  .order { display: grid; gap: 10px; }
+  .order h4 { margin: 0; font-size: 1.05rem; color: var(--accent-ink); }
+  .order-ans { margin: 0; padding-left: 1.5em; display: grid; gap: 6px; min-height: 40px; }
+  .order-ans li::marker { font-weight: 700; color: var(--accent-ink); }
+  .order-empty { color: var(--ink-soft); font-size: .9rem; list-style: none; margin-left: -1.5em; }
+  .order-pool { display: grid; gap: 6px; padding: 10px; border: 2px dashed var(--line); border-radius: 14px; background: var(--cream); }
+  .step { width: 100%; text-align: left; border: 1.5px solid var(--line); background: var(--card); border-radius: 12px; padding: 8px 12px; font-size: .95rem; line-height: 1.4; }
+  .step:hover { border-color: var(--butter-line); }
+  .step.right { background: var(--accent-soft); border-color: var(--accent); }
+  .step.wrong { background: var(--pink); border-color: var(--pink-line); }
+  .clear-btn { border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 4px 13px; font-size: .85rem; font-weight: 600; }
+  .clear-btn.confirm { background: var(--pink); border-color: var(--pink-line); color: var(--pink-ink); }
+  textarea { width: 100%; min-height: 100px; resize: vertical; padding: 10px 13px; font-size: 1rem; line-height: 1.5; border: 1.5px solid var(--line); border-radius: 12px; background: var(--cream); }
+  textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  /* map markers */
+  .start-label { background: var(--accent); color: var(--accent-dark); border: 2px solid #fff; border-radius: 12px; padding: 5px 11px; box-shadow: 0 3px 10px rgba(0,0,0,.18); font: 600 13px var(--font-body); line-height: 1.25; text-align: center; }
+  .start-label::before { border-left-color: var(--accent) !important; }
+  .start-label .sl-top { display: block; font-size: 11px; letter-spacing: .12em; font-weight: 700; }
+  .start-label b { display: block; font-size: 14px; }
+  .start-label .sl-sub { display: block; font-size: 11px; opacity: .8; }
+  .from-to { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; background: var(--card); border: 1.5px solid var(--line); border-radius: 16px; padding: 8px 14px; font-size: 1rem; }
+  .ft-from, .ft-to { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .ft-label { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; }
+  .ft-from b { color: var(--accent-ink); }
+  .ft-place { color: var(--pink-ink); }
+  .ft-arrow { font-size: 1.3rem; color: var(--ink-soft); }
+  .ft-empty { color: var(--ink-soft); font-style: italic; }
+  .start-note { margin: 0 0 6px; font-weight: 700; color: var(--accent-ink); }
+  .pin { width: 30px; height: 30px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); border: 3px solid #fff; box-shadow: 0 3px 8px rgba(0,0,0,.25); }
+  .pin.start { background: var(--accent); } .pin.end { background: var(--pink-ink); }
+  .pdot { width: 22px; height: 22px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.25); cursor: pointer; transition: transform .15s; }
+  .pdot:hover { box-shadow: 0 0 0 3px var(--butter-line), 0 2px 6px rgba(0,0,0,.25); }
+  .pdot.mystery, .pdot.wrong { width: 32px; height: 32px; border-width: 4px; }
+  .pdot.mystery { background: var(--lilac-ink); }
+  .pdot.visited { box-shadow: 0 0 0 3px var(--accent), 0 2px 6px rgba(0,0,0,.25); }
+  .pdot.wrong { background: #ccc; }
+  .lm { display: inline-block; transform: translate(-50%, -50%); white-space: nowrap; font: 700 14px var(--font-body); color: #6D6458; background: rgba(255,253,249,.88); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); pointer-events: none; }
+  .leaflet-popup-content-wrapper, .leaflet-tooltip { border-radius: 12px; font-family: var(--font-body); }
+  .leaflet-popup-content { font-size: 16px; margin: 10px 14px; }
+  .leaflet-tooltip { font-size: 15px; font-weight: 700; }
+
+  /* ---------- quiz: one question at a time ---------- */
+  .quiz-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .q-dots { display: flex; gap: 6px; }
+  .q-dots button { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--card); font-size: .78rem; font-weight: 700; color: var(--ink-soft); padding: 0; }
+  .q-dots button.cur { border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .q-dots button.right { background: var(--accent); border-color: var(--accent); color: var(--accent-dark); }
+  .q-dots button.wrong { background: var(--pink); border-color: var(--pink-line); color: var(--pink-ink); }
+  .q-card { border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; background: var(--cream); display: grid; gap: 10px; }
+  .q-label { font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
+  .q-text { margin: 0; font-size: 1.15rem; font-weight: 700; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 8px 18px; font-size: 1rem; font-weight: 600; }
+  .opt:hover:not(:disabled) { border-color: var(--accent); }
+  .opt:disabled { cursor: default; }
+  .opt.right { background: var(--accent); border-color: var(--accent); color: var(--accent-dark); }
+  .opt.wrong { background: var(--pink); border-color: var(--pink-line); color: var(--pink-ink); text-decoration: line-through; }
+  .q-note { font-size: .9rem; color: var(--ink-soft); }
+  .q-nav { display: flex; justify-content: space-between; gap: 10px; }
+  .score-big { font-family: var(--font-display); font-size: 2.4rem; font-weight: 700; color: var(--accent-ink); margin: 0; line-height: 1; }
+
+  /* ---------- flashcards pop-up ---------- */
+  .modal { position: fixed; inset: 0; z-index: 3000; background: rgba(61, 58, 55, .35); display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+  .modal-box { width: min(560px, 100%); max-height: 100%; overflow-y: auto; background: var(--card); border-radius: 24px; box-shadow: 0 20px 60px rgba(0,0,0,.18); padding: 18px 20px 22px; display: grid; gap: 12px; }
+  .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .close-btn { width: 40px; height: 40px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--cream); font-size: 1.2rem; line-height: 1; }
+  .fc-wrap { display: grid; justify-items: center; gap: 12px; }
+  .flashcard { width: min(100%, 400px); aspect-ratio: 4 / 3; max-width: 100%; perspective: 1000px; border: 0; background: none; padding: 0; }
+  .fc-inner { position: relative; width: 100%; height: 100%; transition: transform .5s; transform-style: preserve-3d; }
+  .flashcard.flipped .fc-inner { transform: rotateY(180deg); }
+  .fc-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 20px; border: 3px solid var(--accent); display: grid; place-content: center; gap: 8px; padding: 18px; text-align: center; }
+  .fc-front { background: linear-gradient(140deg, var(--accent-soft), var(--lilac)); }
+  .fc-back { background: linear-gradient(140deg, var(--pink), var(--butter)); transform: rotateY(180deg); }
+  .fc-word { font-size: 1.8rem; font-weight: 700; color: var(--accent-ink); }
+  .fc-back .fc-word { color: var(--pink-ink); }
+  .fc-ex { font-size: .95rem; margin: 0 auto; max-width: 30ch; }
+  .fc-hint { font-size: .75rem; color: var(--ink-soft); }
+  .fc-controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+  .fc-count { font-size: .88rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; min-width: 3.5em; text-align: center; }
+
+  .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(160%); background: var(--accent-dark); color: #fff; border-radius: 999px; padding: 12px 22px; font-weight: 700; z-index: 4000; transition: transform .3s; max-width: calc(100% - 32px); text-align: center; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ---------- tablets & phones ---------- */
+  @media (max-width: 1000px) {
+    .main { grid-template-columns: minmax(0, 1fr); }
+    .side { height: auto !important; }
+    .side > .phrases { flex: none; }
+    .phrases { max-height: 60vh; max-height: 60dvh; }
+    .tabs { order: 3; flex-basis: 100%; justify-content: flex-start; }
+  }
+  @media (max-width: 560px) {
+    .app-title { font-size: 2.5rem; }
+    .title-pic { height: 100px; }
+    .dash-right { width: 100%; }
+    .section { padding: 12px; }
+
+    .tab { padding-right: 11px; }
+    .tab img { width: 76px; height: 56px; }
+    .q-dots button { width: 26px; height: 26px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
+
+  /* ===== layout update: sticky map, From → To bar with destinations, right-hand tabs ===== */
+  .from-to { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; min-width: 0; }
+  .ft-from, .ft-to { flex-wrap: wrap; }
+  .ft-chips { flex: 1 1 100%; min-width: 0; }
+  .ft-chips[hidden] { display: none !important; }
+  .ft-chips .chips-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .ft-chips .dest { padding: 5px 12px 5px 9px; font-size: .9rem; }
+  @media (min-width: 961px) {
+    .map-col { position: sticky; top: max(12px, env(safe-area-inset-top, 0px)); align-self: start; }
+  }
+  .side { gap: 12px; }
+  .side-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--cream); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
+  .side-tab { border: 0; background: none; border-radius: 999px; padding: 9px 12px; white-space: nowrap; font-weight: 700; font-size: .95rem; color: var(--ink-soft); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+  .side-tab[aria-selected="true"] { background: #FFE6A8; color: #6B4700; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .tab-badge { background: var(--accent-soft); color: var(--accent-ink); border-radius: 999px; padding: 1px 8px; font-size: .72rem; }
+  .pane { display: grid; gap: 12px; }
+  .pane[hidden] { display: none !important; }
+  .side > .phrases, #paneExpr .phrases { margin-top: 0; }
+  .quiz-box { width: min(680px, 100%); }
+  .quiz-box .modal-head { align-items: flex-start; }
+  .quiz-box .quiz-head { flex: 1; }
+
+  /* ===== one set of button colours =====
+     mint = main action · light amber = selected · white outline = everything else */
+  .btn { border-color: var(--line); background: var(--card); color: var(--ink); }
+  .btn.solid { background: var(--accent); border-color: var(--accent); color: var(--accent-dark); }
+  .btn.pink, .btn.soft { border-color: var(--line); background: var(--card); color: var(--ink); }
+  .btn:hover:not(:disabled) { border-color: #F2C25C; filter: none; }
+  .btn.solid:hover:not(:disabled) { border-color: var(--accent); filter: brightness(.96); }
+  .dash-btn, .dash-btn.quiz, .dash-btn.howto, .hu-btn, .swap-btn, .clear-btn {
+    background: var(--card); border: 1.5px solid var(--line); color: var(--ink);
+  }
+  .dash-btn:hover, .hu-btn:hover, .swap-btn:hover, .clear-btn:hover { border-color: #F2C25C; }
+  .howto-drop[open] > summary, .hu-btn[aria-pressed="true"] { background: #FFE6A8; border-color: #F2C25C; color: #6B4700; }
+  .progress-pill { background: var(--card); border-color: var(--line); }
+  .check-btn { background: var(--accent); border-color: var(--accent); color: var(--accent-dark); }
+  .mode[aria-pressed="true"], .dest[aria-pressed="true"] { background: #FFE6A8; border-color: #F2C25C; color: #6B4700; }
+  .dest[aria-pressed="true"] .tick { color: #6B4700; }
+  .dest.random { background: var(--card); border-color: var(--line); color: var(--ink); }
+  .opt.right, .step.right { color: var(--accent-dark); }
+
+</style>
+</head>
+
+<body>
+
+<!-- watercolour texture used by every picture -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <filter id="wc" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="3" seed="4" result="n" />
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="5" />
+    </filter>
+  </defs>
+</svg>
+
+<!-- DASHBOARD -->
+<div class="title-panel">
+  <div class="title-inner">
+    <h1 class="app-title">How Do I Get There?</h1>
+    <span class="sub">London Directions · A1–B1 · Pair work</span>
+  </div>
+</div>
+
+<header class="dash" id="dash">
+  <div class="dash-inner">
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Walks"></nav>
+    <div class="dash-right">
+      <details class="howto-drop" id="howtoDrop">
+        <summary class="dash-btn howto">How to use ▾</summary>
+        <div class="howto-panel">
+          <h2>How to use the app</h2>
+          <ol>
+            <li><b>Choose a walk:</b> Royal London (A1), Westminster (A2) or West End (B1).<span class="hu-text">Válassz sétát a szinted szerint.</span></li>
+            <li><b>Learn the words</b> with Flashcards.<span class="hu-text">Tanuld meg a szavakat a szókártyákkal.</span></li>
+            <li><b>Pick an activity</b> above the map: Pair practice, Route order, Gap-fill, Where am I? or Listen &amp; find.<span class="hu-text">Válassz feladatot a térkép fölött.</span></li>
+            <li><b>Choose a destination.</b> All routes start at <b>Buckingham Palace</b> (the mint ★ START pin). The map draws the route and shows a photo.<span class="hu-text">Válassz úti célt! Minden útvonal a Buckingham-palotától indul (menta ★ START jelölő).</span></li>
+            <li><b>Ask and give directions.</b> Open the “Useful expressions” tab and tap phrases to add them to “Our directions”, then press “Check my key words”.<span class="hu-text">Kérdezzetek és magyarázzátok el az utat; a kifejezésekre kattintva bekerülnek a szövegdobozba.</span></li>
+            <li><b>Do the quiz</b> (Quiz button, top right). Practise all five places and get 3/5 or more to complete the walk.<span class="hu-text">Töltsd ki a kvízt: mind az öt hely és legalább 3 jó válasz kell.</span></li>
+          </ol>
+        </div>
+      </details>
+      <div class="progress-pill" aria-live="polite" title="Walks completed"><span class="count" id="walkCount">0/3</span><span class="progress-dots" id="walkDots"></span></div>
+      <button type="button" class="dash-btn" id="fcOpen">Flashcards</button>
+      <button type="button" class="dash-btn quiz" id="quizJump">Quiz</button>
+      <button type="button" class="hu-btn" id="huBtn" aria-pressed="false" aria-label="Magyar instrukciók" title="Magyar instrukciók">HU</button>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+
+  <!-- MAP PRACTICE -->
+  <section class="card section" aria-label="Map practice">
+    <div class="map-head">
+      <div class="modes" role="group" aria-label="Activity">
+        <button type="button" class="mode" data-mode="practise" aria-pressed="true">Pair practice</button>
+        <button type="button" class="mode" data-mode="order" aria-pressed="false">Route order</button>
+        <button type="button" class="mode" data-mode="gap" aria-pressed="false">✎ Gap-fill</button>
+        <button type="button" class="mode" data-mode="mystery" aria-pressed="false">Where am I?</button>
+        <button type="button" class="mode" data-mode="listen" aria-pressed="false">Listen &amp; find</button>
+      </div>
+      <div class="walk-stats" id="walkLine"></div>
+    </div>
+    <div class="main">
+      <!-- left: route bar + map (stays in view while the right side scrolls) -->
+      <div class="map-col" id="mapCol">
+        <div class="from-to" id="fromTo">
+          <span class="ft-from"><span class="ft-label">From</span><b>★ Buckingham Palace</b></span>
+          <span class="ft-arrow" aria-hidden="true">→</span>
+          <span class="ft-to"><span class="ft-label">To</span><span id="ftTo" aria-live="polite"></span></span>
+          <div id="chipsBlock" class="ft-chips">
+            <div class="chips-row" id="destGrid" role="group" aria-label="Destinations"></div>
+          </div>
+        </div>
+        <div class="map-wrap"><div id="map" aria-label="Map of central London"></div>
+          <div class="legend" id="legend" aria-hidden="true">
+            <span><i class="tag k-landmark"></i>Landmark</span><span><i class="tag k-park"></i>Park</span>
+            <span><i class="tag k-square"></i>Square</span><span><i class="tag k-museum"></i>Museum</span>
+          </div></div>
+      </div>
+
+      <!-- right: Activity / Expressions tabs, notes always underneath -->
+      <div class="side" id="side">
+        <div class="side-tabs" role="tablist" aria-label="Panels">
+          <button type="button" class="side-tab" role="tab" id="tabActivity" data-pane="activity" aria-selected="true" aria-controls="paneActivity">Activity</button>
+          <button type="button" class="side-tab" role="tab" id="tabExpr" data-pane="expr" aria-selected="false" aria-controls="paneExpr">Expressions <span class="tab-badge" id="exprBadge" hidden></span></button>
+        </div>
+        <div class="pane" id="paneActivity" role="tabpanel" aria-labelledby="tabActivity">
+        <details class="intro mode-help" id="modeHelpBox">
+          <summary><span><span id="modeHelpTitle">Pair practice</span>: how it works</span></summary>
+          <div id="modeHelp"></div>
+        </details>
+        <div class="panel dest-card" id="destCard" aria-live="polite"></div>
+        </div>
+        <div class="pane" id="paneExpr" role="tabpanel" aria-labelledby="tabExpr" hidden>
+        <div class="panel phrases">
+          <div class="phrases-head">
+            <div class="phrases-title"><h3>Useful expressions</h3><span class="level">A1–B1</span></div>
+            <div class="roles">
+              <span class="role ask"><span id="askName">Student A</span> asks</span>
+              <span class="role give"><span id="giveName">Student B</span> explains</span>
+              <button type="button" class="swap-btn" id="swapBtn">⇄ Swap</button>
+            </div>
+          </div>
+          <div class="phrases-scroll" id="phrasesScroll" aria-label="Useful expressions">
+            <details class="bank keys" id="keysBank"><summary><span id="keysTitle">Key words for this route</span><span class="count" id="keysCount">0</span></summary><ul id="keysList"></ul></details>
+            <details class="bank ask"><summary>Asking for directions<span class="count">10</span></summary><ul data-fill="1">
+              <li>Excuse me, where is …?</li><li>How do I get to …?</li><li>Can you tell me the way to …?</li>
+              <li>Is it far from here?</li><li>Which way is …?</li><li>Could you point me towards …?</li>
+              <li>Is this the right way to …?</li><li>How long does it take to walk there?</li>
+              <li>Can you show me on the map?</li><li>Is it near here?</li></ul></details>
+            <details class="bank give"><summary>Giving directions<span class="count">13</span></summary><ul>
+              <li>Go straight ahead.</li><li>Turn left.</li><li>Turn right.</li><li>Walk past the …</li><li>Cross the road.</li>
+              <li>You’ll see it on your left.</li><li>You’ll see it on your right.</li><li>Keep going until you reach …</li>
+              <li>Walk through the park.</li><li>Walk along The Mall.</li><li>Follow the signs for …</li><li>Stay on this road.</li>
+              <li>It takes about five minutes.</li></ul></details>
+            <details class="bank prep"><summary>Where exactly? (prepositions)<span class="count">10</span></summary><ul>
+              <li>It’s next to the …</li><li>It’s opposite the …</li><li>It’s between the … and the …</li>
+              <li>It’s on the corner of …</li><li>It’s at the end of the road.</li><li>It’s in front of you.</li>
+              <li>It’s behind the …</li><li>It’s near the …</li><li>Go through the arch.</li><li>Go across the bridge.</li></ul></details>
+          </div>
+          <div class="scroll-hint" aria-hidden="true">Tap a title to open or close the expressions</div>
+        </div>
+        </div>
+        <div class="panel notes">
+          <div class="notes-head"><label for="studentText">Our directions</label>
+            <div class="notes-btns"><button type="button" class="check-btn" id="kwCheck">✓ Check my key words</button><button type="button" class="clear-btn" id="clearText">Clear</button></div></div>
+          <textarea id="studentText" placeholder="Tap the expressions or type your own directions here…"></textarea>
+          <div class="kw-result" id="kwResult" aria-live="polite" hidden></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- QUIZ POP-UP -->
+<div class="modal" id="quizModal" hidden>
+  <div class="modal-box quiz-box" role="dialog" aria-modal="true" aria-labelledby="quizTitle" id="quizSection">
+    <div class="modal-head">
+      <div class="quiz-head">
+      <h2 class="script-h" id="quizTitle">Quick quiz</h2>
+      <div class="q-dots" id="qDots"></div>
+      </div>
+      <button type="button" class="close-btn" id="quizClose" aria-label="Close quiz">✕</button>
+    </div>
+    <div class="intro">Choose the correct word. Get 3 or more right and practise all five places to complete the walk.
+      <span class="hu-text">Válaszd ki a helyes szót! Legalább 3 jó válasz és mind az öt hely gyakorlása kell a séta teljesítéséhez.</span></div>
+    <div id="quiz"></div>
+  </div>
+</div>
+
+<!-- FLASHCARDS POP-UP -->
+<div class="modal" id="fcModal" hidden>
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="fcTitle">
+    <div class="modal-head">
+      <h2 class="script-h" id="fcTitle">Flashcards</h2>
+      <button type="button" class="close-btn" id="fcClose" aria-label="Close flashcards">✕</button>
+    </div>
+    <div class="intro">Tap the card to flip it. Learn the words you need for this walk.
+      <span class="hu-text">Kattints a kártyára, hogy megfordítsd! Tanuld meg a sétához szükséges szavakat.</span></div>
+    <div class="fc-wrap">
+      <button type="button" class="flashcard" id="flashcard" aria-label="Flip card">
+        <div class="fc-inner">
+          <div class="fc-face fc-front"><div class="fc-word" id="fcWord"></div><div class="fc-hint">tap to flip</div></div>
+          <div class="fc-face fc-back"><div class="fc-word" id="fcHu"></div><p class="fc-ex" id="fcEx"></p></div>
+        </div>
+      </button>
+      <div class="fc-controls">
+        <button type="button" class="btn soft" id="fcPrev">Previous / Előző</button>
+        <span class="fc-count" id="fcCount"></span>
+        <button type="button" class="btn solid" id="fcNext">Next / Következő</button>
+        <button type="button" class="btn" id="fcListen">Listen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PICTURE VIEWER -->
+<div class="modal img-modal" id="imgModal" hidden>
+  <div class="img-box" role="dialog" aria-modal="true" aria-label="Picture">
+    <img id="imgBig" alt="">
+    <button type="button" class="close-btn" id="imgClose" aria-label="Close picture">✕</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+
+// =====================================================================
+// PICTURES (soft watercolour-style SVGs, one motif per type of place)
+// =====================================================================
+const C = { stone:"#EFE6D6", stone2:"#E2D5BF", pink:"#F6CFD8", butter:"#F8E3A8", lilac:"#DCCDF0", sage:"#CFE2BF", mint:"#BDF3E8", blue:"#BBD7F0", water:"#A9D2EE", trunk:"#C9A98A", dark:"#9C8F80" };
+const ground = `<path d="M0 118 Q100 102 200 118 L200 140 L0 140Z" fill="${C.sage}"/>`;
+const sky = `<ellipse cx="100" cy="72" rx="92" ry="60" fill="#E4F8F4"/><ellipse cx="150" cy="30" rx="22" ry="8" fill="#fff"/><ellipse cx="45" cy="38" rx="18" ry="6" fill="#fff"/>`;
+const win = (x, y, n, gap, fill) => Array.from({length:n}, (_, i) => `<rect x="${x + i*gap}" y="${y}" width="7" height="10" rx="1" fill="${fill}"/>`).join("");
+const ART = {
+  palace: `${ground}<rect x="34" y="62" width="132" height="52" fill="${C.stone}"/><rect x="34" y="58" width="132" height="6" fill="${C.stone2}"/><polygon points="78,58 100,42 122,58" fill="${C.pink}"/><line x1="100" y1="42" x2="100" y2="24" stroke="${C.dark}" stroke-width="2"/><rect x="100" y="24" width="16" height="9" fill="${C.pink}"/>${win(42,70,4,9,C.lilac)}${win(124,70,4,9,C.lilac)}<rect x="88" y="84" width="24" height="30" rx="12" fill="${C.butter}"/>${win(42,92,4,9,C.lilac)}${win(124,92,4,9,C.lilac)}`,
+  park: `${ground}<rect x="52" y="78" width="7" height="34" fill="${C.trunk}"/><circle cx="56" cy="66" r="26" fill="${C.sage}"/><circle cx="66" cy="74" r="18" fill="#B8D6A6"/><rect x="132" y="84" width="6" height="28" fill="${C.trunk}"/><circle cx="135" cy="74" r="20" fill="#B8D6A6"/><path d="M78 124 Q100 104 122 124" stroke="${C.stone2}" stroke-width="10" fill="none"/><rect x="92" y="98" width="20" height="4" fill="${C.trunk}"/><rect x="94" y="102" width="2" height="6" fill="${C.trunk}"/><rect x="108" y="102" width="2" height="6" fill="${C.trunk}"/>`,
+  lake: `${ground}<ellipse cx="100" cy="114" rx="86" ry="18" fill="${C.water}"/><path d="M38 108 Q100 70 162 108" stroke="#7FAFDF" stroke-width="7" fill="none"/><path d="M38 108 Q100 78 162 108" stroke="#fff" stroke-width="2" fill="none"/><circle cx="30" cy="84" r="16" fill="${C.sage}"/><circle cx="172" cy="80" r="18" fill="#B8D6A6"/><ellipse cx="128" cy="118" rx="8" ry="3" fill="#fff"/><circle cx="133" cy="113" r="3" fill="#fff"/>`,
+  arch: `${ground}<rect x="52" y="54" width="96" height="10" fill="${C.stone2}"/><path d="M56 114 V64 H144 V114 H120 V90 A20 20 0 0 0 80 90 V114Z" fill="${C.stone}"/><rect x="60" y="66" width="6" height="46" fill="${C.stone2}"/><rect x="134" y="66" width="6" height="46" fill="${C.stone2}"/><path d="M84 54 Q100 30 116 54Z" fill="#A9B8A0"/><circle cx="100" cy="36" r="5" fill="#A9B8A0"/>`,
+  tower: `${ground}<rect x="86" y="40" width="28" height="74" fill="${C.butter}"/><rect x="82" y="36" width="36" height="8" fill="#EAD08A"/><polygon points="84,36 100,10 116,36" fill="#9CB59A"/><circle cx="100" cy="54" r="10" fill="#fff" stroke="${C.dark}" stroke-width="1.5"/><line x1="100" y1="54" x2="100" y2="47" stroke="${C.dark}" stroke-width="1.5"/><line x1="100" y1="54" x2="105" y2="56" stroke="${C.dark}" stroke-width="1.5"/>${win(91,72,2,11,"#EAD08A")}${win(91,90,2,11,"#EAD08A")}<rect x="114" y="80" width="56" height="34" fill="${C.stone}"/><rect x="30" y="86" width="56" height="28" fill="${C.stone}"/>`,
+  abbey: `${ground}<rect x="56" y="44" width="22" height="70" fill="${C.stone}"/><rect x="122" y="44" width="22" height="70" fill="${C.stone}"/><polygon points="56,44 67,26 78,44" fill="${C.stone2}"/><polygon points="122,44 133,26 144,44" fill="${C.stone2}"/><rect x="78" y="62" width="44" height="52" fill="${C.stone2}"/><circle cx="100" cy="76" r="10" fill="${C.pink}" stroke="#fff" stroke-width="2"/><path d="M90 114 V98 A10 10 0 0 1 110 98 V114Z" fill="${C.lilac}"/>${win(63,60,1,0,C.lilac)}${win(129,60,1,0,C.lilac)}`,
+  museum: `${ground}<polygon points="40,58 100,32 160,58" fill="${C.lilac}"/><rect x="40" y="58" width="120" height="8" fill="${C.stone2}"/>${[50,72,94,116,138].map(x => `<rect x="${x}" y="66" width="10" height="40" fill="${C.stone}"/>`).join("")}<rect x="34" y="106" width="132" height="6" fill="${C.stone2}"/><rect x="28" y="112" width="144" height="6" fill="${C.stone}"/>`,
+  square: `${ground}<ellipse cx="62" cy="114" rx="30" ry="7" fill="${C.water}"/><path d="M62 112 Q56 92 62 86 Q68 92 62 112" fill="#D6EAF8"/><rect x="112" y="30" width="10" height="80" fill="${C.stone}"/><rect x="108" y="26" width="18" height="6" fill="${C.stone2}"/><circle cx="117" cy="19" r="6" fill="${C.stone2}"/><rect x="100" y="104" width="34" height="10" fill="${C.stone2}"/><path d="M146 108 h22 l-4 -10 h-14z" fill="${C.butter}"/>`,
+  hotel: `${ground}<rect x="28" y="50" width="144" height="64" fill="${C.stone}"/><rect x="28" y="44" width="144" height="8" fill="${C.pink}"/>${win(38,58,9,15,C.lilac)}${win(38,76,9,15,C.lilac)}${[34,58,82,106,130,154].map(x => `<path d="M${x} 114 V102 A6 6 0 0 1 ${x+12} 102 V114Z" fill="${C.butter}"/>`).join("")}<text x="100" y="50" text-anchor="middle" font-size="7" font-family="Comfortaa,sans-serif" fill="#fff" font-weight="700">HOTEL</text>`,
+  circus: `${ground}<rect x="40" y="34" width="120" height="80" fill="${C.stone}"/><rect x="48" y="40" width="44" height="26" fill="${C.pink}"/><rect x="96" y="40" width="56" height="16" fill="${C.mint}"/><rect x="96" y="58" width="28" height="18" fill="${C.butter}"/><rect x="126" y="58" width="26" height="18" fill="${C.blue}"/><rect x="48" y="68" width="44" height="10" fill="${C.lilac}"/><rect x="88" y="98" width="24" height="16" fill="${C.stone2}"/><rect x="97" y="84" width="6" height="14" fill="${C.dark}"/><circle cx="100" cy="80" r="5" fill="${C.dark}"/>`,
+  mystery: `<circle cx="100" cy="70" r="46" fill="${C.lilac}"/><circle cx="100" cy="70" r="36" fill="#F3EEFB"/>`,
+  map: `${ground}<path d="M30 40 L75 30 L125 42 L170 32 L170 110 L125 120 L75 108 L30 118Z" fill="${C.stone}"/><path d="M75 30 L75 108 M125 42 L125 120" stroke="${C.stone2}" stroke-width="2"/><path d="M45 96 Q80 60 110 80 T158 54" stroke="${C.pink}" stroke-width="4" stroke-dasharray="2 7" stroke-linecap="round" fill="none"/><circle cx="45" cy="96" r="6" fill="#48E8CC"/><circle cx="158" cy="54" r="6" fill="#B25C74"/>`,
+  cards: `<rect x="44" y="34" width="84" height="64" rx="8" fill="${C.mint}" transform="rotate(-8 86 66)"/><rect x="72" y="40" width="84" height="64" rx="8" fill="${C.pink}" transform="rotate(6 114 72)"/><rect x="88" y="62" width="44" height="6" rx="3" fill="#fff"/><rect x="88" y="74" width="30" height="6" rx="3" fill="#fff"/>`,
+  quiz: `<rect x="50" y="24" width="100" height="98" rx="10" fill="${C.butter}"/><rect x="62" y="40" width="10" height="10" rx="2" fill="#48E8CC"/><rect x="80" y="42" width="54" height="6" rx="3" fill="#fff"/><rect x="62" y="62" width="10" height="10" rx="2" fill="${C.pink}"/><rect x="80" y="64" width="44" height="6" rx="3" fill="#fff"/><rect x="62" y="84" width="10" height="10" rx="2" fill="#48E8CC"/><rect x="80" y="86" width="50" height="6" rx="3" fill="#fff"/>`
+};
+function art(key, withSky = true) {
+  const extra = key === "mystery" ? `<text x="100" y="88" text-anchor="middle" font-size="52" font-family="Dancing Script,cursive" font-weight="700" fill="#7A5FA8">?</text>` : "";
+  return `<svg viewBox="0 0 200 140" role="img" aria-hidden="true"><g filter="url(#wc)">${withSky && key !== "mystery" ? sky : ""}${ART[key]}</g>${extra}</svg>`;
+}
+
+// =====================================================================
+// DATA: three graded walks, five places each (all within ~1.2 km)
+// =====================================================================
+const START = { name: "Buckingham Palace", ll: [51.5014, -0.1419] };
+
+const WALKS = [
+  {
+    id: "royal", name: "Royal London", level: "A1", icon: "palace",
+    blurb: "Short walks around the palace and the royal parks.",
+    places: [
+      { name: "Green Park", ll: [51.5045, -0.1430], kind: "park", art: "park",
+        fact: "A quiet park with big trees and deckchairs, right next to the palace.",
+        dir: "Go out of the palace gates and turn left. Walk past the Victoria Memorial. Cross the road. Green Park is on your left. It's very near, about five minutes." },
+      { name: "Clarence House", ll: [51.5039, -0.1384], kind: "landmark", art: "palace",
+        fact: "A royal home on The Mall, behind a white wall and gates.",
+        dir: "Walk to the Victoria Memorial and turn left into The Mall. Go straight ahead. St James's Park is on your right. After about five minutes, Clarence House is on your left." },
+      { name: "St James’s Palace", ll: [51.5047, -0.1373], kind: "landmark", art: "palace",
+        fact: "A very old red-brick palace with a big clock on the gate.",
+        dir: "Walk along The Mall. Walk past Clarence House on your left. Turn left into Marlborough Road. St James's Palace is on your left. It's a red-brick building." },
+      { name: "St James’s Park Lake", ll: [51.5027, -0.1340], kind: "park", art: "lake",
+        fact: "A long lake with ducks, pelicans and a blue bridge in the middle.",
+        dir: "Walk to the Victoria Memorial. Cross the road and go into St James's Park. Walk along the path next to the lake. Keep going until you reach the blue bridge." },
+      { name: "Wellington Arch", ll: [51.5026, -0.1509], kind: "landmark", art: "arch",
+        fact: "A big stone arch with a statue of horses on the top.",
+        dir: "Go out of the palace and turn left. Walk up Constitution Hill. Green Park is on your right. Keep going to the end of the road. Wellington Arch is in front of you." }
+    ],
+    words: [
+      ["palace", "palota", "The King lives in a palace."],
+      ["gate", "kapu", "Go out of the gate and turn left."],
+      ["park", "park", "Walk through the park."],
+      ["lake", "tó", "There are ducks on the lake."],
+      ["bridge", "híd", "Go across the bridge."],
+      ["path", "ösvény, sétaút", "Follow the path next to the lake."],
+      ["statue", "szobor", "There is a statue on the top of the arch."],
+      ["left / right", "bal / jobb", "Turn left. The park is on your right."]
+    ],
+    quiz: [
+      ["Go ___ ahead.", ["straight", "right", "along", "over"], 0, "“Go straight ahead” = egyenesen előre."],
+      ["Turn ___ into The Mall.", ["on", "left", "in", "to"], 1, "Turn left / turn right."],
+      ["The park is ___ your right.", ["in", "at", "on", "by"], 2, "We say “on your left / on your right”."],
+      ["Excuse me, ___ is Green Park?", ["what", "who", "when", "where"], 3, "We ask about places with “where”."],
+      ["Go ___ the bridge to the other side.", ["across", "between", "behind", "next"], 0, "“Across” = from one side to the other."]
+    ]
+  },
+  {
+    id: "westminster", name: "Westminster", level: "A2", icon: "tower",
+    blurb: "Longer walks along Birdcage Walk to Parliament.",
+    places: [
+      { name: "Guards Museum", ll: [51.5000, -0.1356], kind: "museum", art: "museum",
+        fact: "Learn about the soldiers in red coats and tall black hats.",
+        dir: "Walk to the Victoria Memorial and turn right. Then turn left into Birdcage Walk. St James's Park is on your left. The Guards Museum is on your right. It takes about five minutes." },
+      { name: "Churchill War Rooms", ll: [51.5021, -0.1291], kind: "museum", art: "museum",
+        fact: "Secret rooms under the ground, used by Winston Churchill in the war.",
+        dir: "Turn into Birdcage Walk and stay on this road. At the end of the park, turn left into Horse Guards Road. Walk for about two minutes. The Churchill War Rooms are on your right, next to some steps." },
+      { name: "Horse Guards Parade", ll: [51.5046, -0.1290], kind: "square", art: "palace",
+        fact: "A big open square where soldiers on horses parade.",
+        dir: "Walk along Birdcage Walk. At the end of the park, turn left into Horse Guards Road. Walk past the Churchill War Rooms. Horse Guards Parade is the big open space on your right." },
+      { name: "Westminster Abbey", ll: [51.4994, -0.1273], kind: "landmark", art: "abbey",
+        fact: "A famous old church where kings and queens are crowned.",
+        dir: "Walk along Birdcage Walk to the end. Cross the road at the traffic lights and go straight on. Westminster Abbey is in front of you, opposite Parliament Square." },
+      { name: "Big Ben", ll: [51.5007, -0.1246], kind: "landmark", art: "tower",
+        fact: "The great bell in the clock tower of the Houses of Parliament.",
+        dir: "Walk along Birdcage Walk to the end. Go straight on into Great George Street. Keep going until you reach Parliament Square. Cross at the traffic lights. Big Ben is in front of you." }
+    ],
+    words: [
+      ["clock tower", "óratorony", "Big Ben is in the clock tower."],
+      ["abbey", "apátság", "Westminster Abbey is a very old church."],
+      ["traffic lights", "közlekedési lámpa", "Cross at the traffic lights."],
+      ["pedestrian crossing", "gyalogátkelő", "Use the pedestrian crossing."],
+      ["the end of the road", "az út vége", "Turn left at the end of the road."],
+      ["steps", "lépcső", "Go down the steps."],
+      ["square", "tér", "Parliament Square is very busy."],
+      ["soldier", "katona", "The soldiers wear red coats."]
+    ],
+    quiz: [
+      ["Walk ___ the road until you reach the square.", ["along", "across", "between", "under"], 0, "“Walk along the road” = végig az úton."],
+      ["___ at the traffic lights.", ["Crossing", "Cross", "Crosses", "To cross"], 1, "Directions use the imperative: Cross, Turn, Go."],
+      ["How long ___ it take to walk there?", ["is", "do", "does", "has"], 2, "How long does it take…?"],
+      ["The War Rooms are ___ the steps.", ["next", "near of", "beside of", "next to"], 3, "next to = mellett."],
+      ["Keep going ___ you reach Parliament Square.", ["until", "when", "since", "during"], 0, "“until” = amíg el nem éred."]
+    ]
+  },
+  {
+    id: "westend", name: "West End", level: "B1", icon: "circus",
+    blurb: "The longest routes, through Green Park or along The Mall.",
+    places: [
+      { name: "The Ritz", ll: [51.5070, -0.1416], kind: "landmark", art: "hotel",
+        fact: "A very famous hotel, well known for its afternoon tea.",
+        dir: "Go into Green Park and take the path called Queen's Walk. Walk straight up through the park. At the top you'll reach Piccadilly. The Ritz is on your right, on the corner." },
+      { name: "Royal Academy of Arts", ll: [51.5094, -0.1394], kind: "museum", art: "museum",
+        fact: "An art gallery in a beautiful courtyard on Piccadilly.",
+        dir: "Walk up Queen's Walk through Green Park until you reach Piccadilly. Turn right and walk past The Ritz. Keep going for about five minutes. The Royal Academy is on your left, opposite Fortnum & Mason." },
+      { name: "Piccadilly Circus", ll: [51.5101, -0.1337], kind: "square", art: "circus",
+        fact: "A busy meeting place with huge bright screens and a small statue.",
+        dir: "Go through Green Park to Piccadilly and turn right. Stay on this road for about ten minutes. Walk past the Royal Academy on your left. Keep going until you reach Piccadilly Circus. You can't miss the big screens." },
+      { name: "Admiralty Arch", ll: [51.5066, -0.1279], kind: "landmark", art: "arch",
+        fact: "A huge white arch at the end of The Mall, with three gates.",
+        dir: "Walk to the Victoria Memorial and turn into The Mall. Go straight along The Mall for about fifteen minutes, with St James's Park on your right. The big white arch at the end of the road is Admiralty Arch." },
+      { name: "Trafalgar Square", ll: [51.5080, -0.1281], kind: "square", art: "square",
+        fact: "A big square with fountains, four lions and Nelson's Column.",
+        dir: "Walk all the way along The Mall. Go through Admiralty Arch. Trafalgar Square is right in front of you. You'll see Nelson's Column and the fountains." }
+    ],
+    words: [
+      ["opposite", "szemben", "The gallery is opposite the shop."],
+      ["between", "között", "It's between the bank and the café."],
+      ["on the corner", "a sarkon", "The hotel is on the corner."],
+      ["junction", "útkereszteződés", "Turn right at the junction."],
+      ["pavement", "járda", "Stay on the pavement."],
+      ["entrance", "bejárat", "The entrance is on the left."],
+      ["arch", "boltív, diadalív", "Go through the arch."],
+      ["You can't miss it.", "Nem tudod eltéveszteni.", "It's huge. You can't miss it."]
+    ],
+    quiz: [
+      ["The Royal Academy is ___ Fortnum & Mason.", ["opposite of", "opposite", "in front", "across"], 1, "We say “opposite the shop”, without “of”."],
+      ["Could you point me ___ Piccadilly Circus?", ["at", "into", "towards", "onto"], 2, "point someone towards a place"],
+      ["The Ritz is ___ the corner.", ["on", "in", "under", "through"], 0, "on the corner (of a street)"],
+      ["Is this the right way ___ Trafalgar Square?", ["for going", "at", "into", "to"], 3, "the way to a place"],
+      ["Go ___ Admiralty Arch and you'll see the square.", ["through", "across", "over", "along"], 0, "through = át (egy kapun, íven)"]
+    ]
+  }
+];
+
+// Real photos from Wikimedia Commons (free licences). Each photo's page, with its author and licence, is linked under the picture.
+const PHOTOS = {
+  "Green Park": "Green_Park,_London_-_April_2007.jpg",
+  "Clarence House": "Clarence_house.jpg",
+  "St James’s Palace": "St_James's_palace_in_London.jpg",
+  "St James’s Park Lake": "Blue_Bridge_over_the_lake_at_St_James's_Park_-_geograph.org.uk_-_6320030.jpg",
+  "Wellington Arch": "Wellington_Arch,_London.JPG",
+  "Guards Museum": "London_,_Westminster_-_Wellington_Barracks_-_geograph.org.uk_-_1739568.jpg",
+  "Churchill War Rooms": "Cabinet_war_rooms.jpg",
+  "Horse Guards Parade": "Horseguards_Building,_London_MOD_45152987.jpg",
+  "Westminster Abbey": "Westminster_abbey_west.jpg",
+  "Big Ben": "Big_Ben_Elizabeth_Tower_Full_View.JPG",
+  "The Ritz": "The_Ritz_on_Piccadilly.jpg",
+  "Royal Academy of Arts": "Burlington_House_Royal_Academy_of_Arts-London.jpg",
+  "Piccadilly Circus": "Piccadilly_Circus,_London_W1_-_geograph.org.uk_-_1097998.jpg",
+  "Admiralty Arch": "Admiralty_Arch,_London,_England_-_June_2009.jpg",
+  "Trafalgar Square": "London_-_Trafalgar_Square_-_Nelson's_Column_-_The_National_Gallery.jpg"
+};
+const COMMONS = "https://commons.wikimedia.org/wiki/";
+// fetch a walk's photos in the background so they appear at once when a place is chosen
+const photoCache = {};
+function preloadPlace(p) {
+  const f = picFor(p);
+  if (f && !photoCache[f.src]) { const i = new Image(); i.decoding = "async"; i.src = f.src; photoCache[f.src] = i; }
+}
+// the open walk's photos first, then every other walk's photos a moment later
+function preloadPhotos() {
+  walk().places.forEach(preloadPlace);
+  setTimeout(() => WALKS.forEach(w => w.places.forEach(preloadPlace)), 800);
+}
+// wait (briefly) for a photo so the pop-up can open once, already at its final size
+const MAX_W = 280, MAX_H = 260;
+const FALLBACK_MS = 1200;            // never keep students waiting longer than this
+function photoReady(p, wait = FALLBACK_MS) {
+  const f = picFor(p); if (!f) return Promise.resolve(null);
+  let i = photoCache[f.src];
+  if (!i) { i = new Image(); i.src = f.src; photoCache[f.src] = i; }
+  const size = () => {
+    if (!i.naturalWidth) return null;
+    const k = Math.min(MAX_W / i.naturalWidth, MAX_H / i.naturalHeight, 1);
+    return { w: Math.round(i.naturalWidth * k), h: Math.round(i.naturalHeight * k) };
+  };
+  if (i.complete) return Promise.resolve(size());
+  return new Promise(res => {
+    const t = setTimeout(() => res(null), wait);                 // slow network: open without the photo
+    i.addEventListener("load", () => { clearTimeout(t); res(size()); }, { once: true });
+    i.addEventListener("error", () => { clearTimeout(t); res(null); }, { once: true });
+  });
+}
+function picFor(p) {                          // null when there is no photo of this exact place
+  const file = p && PHOTOS[p.name];
+  if (!file) return null;
+  const f = encodeURIComponent(file);
+  return { src: COMMONS + "Special:FilePath/" + f + "?width=480", big: COMMONS + "Special:FilePath/" + f + "?width=1400",
+           page: COMMONS + "File:" + f, alt: "Photo of " + p.name };
+}
+
+// Key words students need for each route (all appear in the example directions)
+const KEYS = {
+  "Green Park": ["palace gates", "turn left", "Victoria Memorial", "walk past", "cross the road", "on your left", "five minutes"],
+  "Clarence House": ["Victoria Memorial", "turn left", "The Mall", "go straight ahead", "St James's Park", "on your right", "on your left"],
+  "St James’s Palace": ["The Mall", "walk past", "Clarence House", "turn left", "Marlborough Road", "red-brick building", "on your left"],
+  "St James’s Park Lake": ["Victoria Memorial", "cross the road", "St James's Park", "the path", "next to the lake", "keep going until", "blue bridge"],
+  "Wellington Arch": ["turn left", "walk up", "Constitution Hill", "Green Park", "on your right", "the end of the road", "in front of you"],
+  "Guards Museum": ["Victoria Memorial", "turn right", "turn left", "Birdcage Walk", "St James's Park", "on your left", "on your right"],
+  "Churchill War Rooms": ["Birdcage Walk", "stay on this road", "the end of the park", "turn left", "Horse Guards Road", "on your right", "next to", "steps"],
+  "Horse Guards Parade": ["Birdcage Walk", "the end of the park", "turn left", "Horse Guards Road", "walk past", "Churchill War Rooms", "open space", "on your right"],
+  "Westminster Abbey": ["Birdcage Walk", "the end", "cross the road", "traffic lights", "go straight on", "in front of you", "opposite", "Parliament Square"],
+  "Big Ben": ["Birdcage Walk", "go straight on", "Great George Street", "keep going until", "Parliament Square", "traffic lights", "in front of you"],
+  "The Ritz": ["Green Park", "the path", "Queen's Walk", "walk straight up", "Piccadilly", "on your right", "on the corner"],
+  "Royal Academy of Arts": ["Queen's Walk", "Green Park", "Piccadilly", "turn right", "walk past", "The Ritz", "on your left", "opposite", "Fortnum & Mason"],
+  "Piccadilly Circus": ["Green Park", "Piccadilly", "turn right", "stay on this road", "walk past", "Royal Academy", "keep going until", "big screens"],
+  "Admiralty Arch": ["Victoria Memorial", "The Mall", "go straight along", "St James's Park", "on your right", "the end of the road", "big white arch"],
+  "Trafalgar Square": ["The Mall", "all the way", "go through", "Admiralty Arch", "in front of you", "Nelson's Column", "fountains"]
+};
+WALKS.forEach(w => w.places.forEach(p => { p.keys = KEYS[p.name] || []; }));
+
+// Street names shown on the map so students have things to mention
+const LANDMARKS = [
+  ["Victoria Memorial", [51.5017, -0.1388]],
+  ["The Mall", [51.5047, -0.1330]],
+  ["Constitution Hill", [51.5031, -0.1468]],
+  ["Birdcage Walk", [51.5004, -0.1320]],
+  ["Queen’s Walk", [51.5058, -0.1410]],
+  ["Piccadilly", [51.5078, -0.1455]],
+  ["Pall Mall", [51.5063, -0.1345]],
+  ["Horse Guards Rd", [51.5032, -0.1282]]
+];
+
+const MODE_HELP = {
+  gap: ["<b>Gap-fill:</b> Choose a place. Its example directions appear with words missing. Use the word bank to fill the gaps, then press Check.",
+        "Válassz helyet! Az útbaigazításból hiányoznak szavak. Töltsd ki a hiányzó szavakat a szóbank segítségével, majd ellenőrizd!"],
+  order: ["<b>Route order:</b> Choose a place. Its example directions are cut into steps and mixed up. Follow the route on the map and tap the steps in the right order, then press Check.",
+          "Válassz helyet! Az útbaigazítás lépései összekeveredtek. Kövesd az utat a térképen, és kattints a lépésekre a helyes sorrendben, majd ellenőrizd!"],
+  practise: ["<b>Pair practice:</b> Choose a place. Student A asks the way, Student B looks at the map and gives directions. Then press “Show example directions” and compare.",
+             "Válassz helyet! „A” diák útbaigazítást kér, „B” diák a térkép alapján elmagyarázza az utat. Utána nézzétek meg a mintamegoldást!"],
+  mystery: ["<b>Where am I?</b> Only Student B looks at the secret card and gives directions from Buckingham Palace. Student A follows on the map and taps the place they think it is.",
+            "Csak „B” diák nézi meg a titkos kártyát, és elmagyarázza az utat. „A” diák a térképen követi, és rákattint arra a helyre, ahová szerinte jutott."],
+  listen: ["<b>Listen &amp; find:</b> Press Play and listen to the directions. Follow the route on the map, then tap the place where you arrive.",
+           "Nyomd meg a Lejátszás gombot, és hallgasd meg az útbaigazítást! Kövesd a térképen, majd kattints arra a helyre, ahová megérkeztél."]
+};
+
+// =====================================================================
+// STATE (progress is remembered on this device)
+// =====================================================================
+const STORE_KEY = "poc-london-directions-v2";
+let saved = { visited: {}, quiz: {} };
+try { const raw = localStorage.getItem(STORE_KEY); if (raw) saved = Object.assign(saved, JSON.parse(raw)); } catch (e) {}
+function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(saved)); } catch (e) {} }
+
+let walkIdx = 0, mode = "practise";
+function isPick(m) { return m === "practise" || m === "order" || m === "gap"; }   // activities where students choose the place
+let current = null;                  // chosen place (practice) or solved mystery place
+let target = null, solved = false, wrongTries = new Set(), secretOpen = false, textOpen = false, slow = false;
+let panel = null;          // which practice tool is open: "example" | "walk" | "gap"
+let fcIdx = 0;
+
+const walk = () => WALKS[walkIdx];
+const visitedSet = w => new Set(saved.visited[w.id] || []);
+const isNarrow = () => window.matchMedia("(max-width: 960px)").matches;
+const $ = id => document.getElementById(id);
+
+function metres(a, b) {
+  const R = 6371000, r = d => d * Math.PI / 180;
+  const h = Math.sin(r(b[0] - a[0]) / 2) ** 2 + Math.cos(r(a[0])) * Math.cos(r(b[0])) * Math.sin(r(b[1] - a[1]) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+// Walking routes: the streets named in each example route (Buckingham Palace → destination)
+const GATES = [51.5017, -0.1410], MEM_N = [51.5023, -0.1405], MEM_S = [51.5011, -0.1401];
+const MALL = [[51.5022, -0.1398], [51.5025, -0.1394], [51.5031, -0.1377], [51.5037, -0.1361], [51.5044, -0.1341], [51.5051, -0.1322], [51.5058, -0.1302], [51.5064, -0.1284]];
+const BIRDCAGE = [MEM_S, [51.5007, -0.1392], [51.5004, -0.1370], [51.5004, -0.1345], [51.5007, -0.1320], [51.5012, -0.1300]];
+const QUEENS_WALK = [GATES, MEM_N, [51.5029, -0.1402], [51.5045, -0.1407], [51.5060, -0.1412], [51.5068, -0.1413]];
+const PICCADILLY = [[51.5074, -0.1403], [51.5081, -0.1393], [51.5088, -0.1388]];
+const ROUTES = {
+  "Green Park": [GATES, MEM_N, [51.5027, -0.1414], [51.5036, -0.1424]],
+  "Clarence House": [GATES, ...MALL.slice(0, 2), [51.5028, -0.1385], [51.5034, -0.1385]],
+  "St James’s Palace": [GATES, ...MALL.slice(0, 3), [51.5035, -0.1366], [51.5045, -0.1367]],
+  "St James’s Park Lake": [GATES, [51.5016, -0.1397], [51.5020, -0.1382], [51.5023, -0.1365], [51.5026, -0.1350]],
+  "Wellington Arch": [GATES, [51.5024, -0.1420], [51.5026, -0.1445], [51.5028, -0.1475], [51.5028, -0.1497]],
+  "Guards Museum": [GATES, MEM_S, [51.5007, -0.1392], [51.5004, -0.1370], [51.5003, -0.1358]],
+  "Churchill War Rooms": [GATES, ...BIRDCAGE, [51.5016, -0.1297]],
+  "Horse Guards Parade": [GATES, ...BIRDCAGE, [51.5020, -0.1297], [51.5040, -0.1298]],
+  "Westminster Abbey": [GATES, ...BIRDCAGE, [51.5004, -0.1293], [51.4998, -0.1286]],
+  "Big Ben": [GATES, ...BIRDCAGE, [51.5012, -0.1285], [51.5010, -0.1268], [51.5008, -0.1256]],
+  "The Ritz": [...QUEENS_WALK],
+  "Royal Academy of Arts": [...QUEENS_WALK, ...PICCADILLY],
+  "Piccadilly Circus": [...QUEENS_WALK, ...PICCADILLY, [51.5093, -0.1370], [51.5098, -0.1352]],
+  "Admiralty Arch": [GATES, ...MALL],
+  "Trafalgar Square": [GATES, ...MALL, [51.5066, -0.1279], [51.5072, -0.1278]]
+};
+WALKS.forEach(w => w.places.forEach(p => {
+  p.path = [START.ll, ...(ROUTES[p.name] || []), p.ll];
+  p.walk = Math.round(p.path.slice(1).reduce((sum, pt, i) => sum + metres(p.path[i], pt), 0));   // metres along the route
+  p.diff = p.walk < 650 ? "easy" : p.walk < 1150 ? "medium" : "hard";
+}));
+const fmtDist = m => m >= 1000 ? (m / 1000).toFixed(1) + " km" : Math.round(m / 10) * 10 + " m";
+const fmtTime = m => Math.max(2, Math.round(m / 80)) + " min walk";
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+// =====================================================================
+// SPEECH
+// =====================================================================
+function speak(text, rate = 0.95) {
+  if (!("speechSynthesis" in window)) { toast("This browser can't read aloud. Use “Show text” instead."); return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text.replace(/’/g, "'"));
+  u.lang = "en-GB"; u.rate = rate;
+  const voices = speechSynthesis.getVoices();
+  const v = voices.find(v => v.lang === "en-GB") || voices.find(v => v.lang && v.lang.startsWith("en"));
+  if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+if ("speechSynthesis" in window) speechSynthesis.getVoices();
+
+// =====================================================================
+// HEADER, TABS, PROGRESS
+// =====================================================================
+function walkDone(w) { return visitedSet(w).size === w.places.length && (saved.quiz[w.id] ?? -1) >= 3; }
+
+function renderProgress() {
+  const done = WALKS.filter(walkDone).length;
+  $("walkCount").textContent = done + "/" + WALKS.length;
+  $("walkDots").innerHTML = WALKS.map(w => `<i class="${walkDone(w) ? "on" : ""}"></i>`).join("");
+  document.querySelectorAll(".tab").forEach((t, i) => t.classList.toggle("done", walkDone(WALKS[i])));
+  const w = walk(), v = visitedSet(w).size, q = saved.quiz[w.id];
+  $("walkLine").innerHTML = `<b>Walk ${walkIdx + 1} · ${w.name} (${w.level})</b>
+    <span class="chip-stat ${v === w.places.length ? "ok" : ""}">Places ${v}/${w.places.length}</span>
+    <span class="chip-stat ${q >= 3 ? "ok" : ""}">Quiz ${q == null ? "–" : q + "/5"}</span>`;
+}
+
+$("tabs").innerHTML = WALKS.map((w, i) => `
+  <button type="button" class="tab" role="tab" data-i="${i}" aria-selected="${i === 0}" title="Walk ${i + 1} · ${w.level}">
+    <span>${w.name}</span><span class="done-mark">✓</span>
+  </button>`).join("");
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => setWalk(+t.dataset.i)));
+
+
+const huBtn = $("huBtn");
+huBtn.addEventListener("click", () => {
+  const on = document.body.classList.toggle("show-hu");
+  huBtn.setAttribute("aria-pressed", on);
+  huBtn.textContent = on ? "EN" : "HU";
+  sizeLayout();
+});
+
+// =====================================================================
+// FLASHCARDS
+// =====================================================================
+function renderCard() {
+  const words = walk().words, [en, hu, ex] = words[fcIdx];
+  $("flashcard").classList.remove("flipped");
+  $("fcWord").textContent = en; $("fcHu").textContent = hu; $("fcEx").textContent = ex;
+  $("fcCount").textContent = (fcIdx + 1) + " / " + words.length;
+}
+$("flashcard").addEventListener("click", () => $("flashcard").classList.toggle("flipped"));
+$("fcPrev").addEventListener("click", () => { fcIdx = (fcIdx - 1 + walk().words.length) % walk().words.length; renderCard(); });
+$("fcNext").addEventListener("click", () => { fcIdx = (fcIdx + 1) % walk().words.length; renderCard(); });
+// picture viewer
+const imgModal = $("imgModal"); let imgReturn = null;
+$("map").addEventListener("click", e => {
+  const img = e.target.closest(".pop-pic"); if (!img) return;
+  imgReturn = document.activeElement;
+  $("imgBig").src = img.dataset.big || img.src; $("imgBig").alt = img.alt;
+  imgModal.hidden = false; $("imgClose").focus();
+});
+function closeImg() { imgModal.hidden = true; if (imgReturn) imgReturn.focus(); }
+$("imgClose").addEventListener("click", closeImg);
+imgModal.addEventListener("click", e => { if (e.target === imgModal) closeImg(); });
+document.addEventListener("keydown", e => { if (!imgModal.hidden && e.key === "Escape") closeImg(); });
+
+// close the "How to use" drop-down when clicking elsewhere or pressing Esc
+document.addEventListener("click", e => { const d = $("howtoDrop"); if (d.open && !d.contains(e.target)) d.open = false; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("howtoDrop").open = false; });
+
+const fcModal = $("fcModal"); let fcReturn = null;
+function openCards() { fcReturn = document.activeElement; renderCard(); fcModal.hidden = false; $("fcClose").focus(); }
+function closeCards() { fcModal.hidden = true; if ("speechSynthesis" in window) speechSynthesis.cancel(); if (fcReturn) fcReturn.focus(); }
+$("fcOpen").addEventListener("click", openCards);
+$("fcClose").addEventListener("click", closeCards);
+fcModal.addEventListener("click", e => { if (e.target === fcModal) closeCards(); });
+document.addEventListener("keydown", e => {
+  if (fcModal.hidden) return;
+  if (e.key === "Escape") closeCards();
+  if (e.key === "ArrowRight") $("fcNext").click();
+  if (e.key === "ArrowLeft") $("fcPrev").click();
+});
+const quizModal = $("quizModal"); let quizReturn = null;
+function openQuiz() { quizReturn = document.activeElement; renderQuiz(); quizModal.hidden = false; $("quizClose").focus(); }
+function closeQuiz() { quizModal.hidden = true; if (quizReturn) quizReturn.focus(); }
+$("quizJump").addEventListener("click", openQuiz);
+$("quizClose").addEventListener("click", closeQuiz);
+quizModal.addEventListener("click", e => { if (e.target === quizModal) closeQuiz(); });
+document.addEventListener("keydown", e => { if (!quizModal.hidden && e.key === "Escape") closeQuiz(); });
+
+// right-hand tabs: Activity / Useful expressions
+function showPane(name) {
+  document.querySelectorAll(".side-tab").forEach(t => t.setAttribute("aria-selected", t.dataset.pane === name));
+  $("paneActivity").hidden = name !== "activity";
+  $("paneExpr").hidden = name !== "expr";
+}
+document.querySelectorAll(".side-tab").forEach(t => t.addEventListener("click", () => showPane(t.dataset.pane)));
+$("fcListen").addEventListener("click", () => { const [en, , ex] = walk().words[fcIdx]; speak(en + ". " + ex); });
+
+// =====================================================================
+// MAP
+// =====================================================================
+
+const map = L.map("map", { maxBounds: L.latLngBounds([51.49, -0.165], [51.52, -0.11]), maxBoundsViscosity: 0.8, minZoom: 14, tap: true }).setView(START.ll, 15);
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", { maxZoom: 20, attribution: "Tiles © Esri" }).addTo(map);
+
+const pinIcon = cls => L.divIcon({ className: "", html: `<div class="pin ${cls}"></div>`, iconSize: [30, 30], iconAnchor: [15, 36], popupAnchor: [0, -34] });
+L.marker(START.ll, { icon: pinIcon("start"), zIndexOffset: 1000 }).addTo(map)
+  .bindTooltip(`<span class="sl-top">★ START</span><b>Buckingham Palace</b><span class="sl-sub">You are here</span>`,
+    { permanent: true, direction: "left", offset: [-14, -18], className: "start-label", interactive: false });
+
+LANDMARKS.forEach(([name, ll]) => L.marker(ll, { icon: L.divIcon({ className: "", html: `<span class="lm">${name}</span>`, iconSize: null }), interactive: false, keyboard: false }).addTo(map));
+
+let placeLayer = L.layerGroup().addTo(map);
+let destMarker = null, routeLine = null;
+
+function clearRoute() {
+  stopWalk();
+  if (destMarker) map.removeLayer(destMarker);
+  if (routeLine) map.removeLayer(routeLine);
+  destMarker = routeLine = null;
+}
+
+function drawPlaces() {
+  placeLayer.clearLayers();
+  const v = visitedSet(walk());
+  walk().places.forEach((p, i) => {
+    if (isPick(mode) && current === p) return;                  // shown as the pink pin instead
+    if (!isPick(mode) && solved && target === p) return;
+    const cls = isPick(mode) ? "k-" + p.kind : (wrongTries.has(i) ? "wrong" : "mystery");
+    const m = L.marker(p.ll, { icon: L.divIcon({ className: "", html: `<div class="pdot ${cls} ${isPick(mode) && v.has(p.name) ? "visited" : ""}"></div>`, iconSize: isPick(mode) ? [22, 22] : [32, 32], iconAnchor: isPick(mode) ? [11, 11] : [16, 16] }), title: isPick(mode) ? p.name : "Mystery place" });
+    if (isPick(mode)) m.bindTooltip(p.name, { direction: "top", offset: [0, -10] });
+    m.on("mouseover touchstart", () => preloadPlace(p));
+    m.on("click", () => isPick(mode) ? choosePlace(i) : guess(i));
+    placeLayer.addLayer(m);
+  });
+}
+
+function fitWalk() {
+  map.fitBounds(L.latLngBounds([START.ll, ...walk().places.map(p => p.ll)]), { padding: [40, 40], maxZoom: 16 });
+}
+
+function popupHtml(p, size) {
+  const f = picFor(p);
+  const photo = f && size ? `<span class="pop-photo"><img class="pop-pic" src="${f.src}" data-big="${f.big}" alt="${f.alt}" width="${size.w}" height="${size.h}" title="Tap to enlarge"><a class="pop-credit" href="${f.page}" target="_blank" rel="noopener">Photo: Wikimedia Commons ↗</a></span>` : "";
+  return `<b>Destination:</b> ${p.name}` + photo;
+}
+async function showRoute(p) {
+  clearRoute();
+  const m = L.marker(p.ll, { icon: pinIcon("end"), zIndexOffset: 900 }).addTo(map);
+  destMarker = m;
+  map.fitBounds(L.latLngBounds(p.path), { paddingTopLeft: [60, 60], paddingBottomRight: [60, 40], maxZoom: 17, animate: false });
+  drawRoute(p);
+  const size = await photoReady(p);                               // instant when the photo is already loaded
+  if (destMarker !== m) return;                                   // another place was chosen meanwhile
+  m.bindPopup(popupHtml(p, size), { maxWidth: 300, minWidth: size ? size.w : 50, autoPanPadding: [24, 24] }).openPopup();
+  if (!size && picFor(p)) {                                       // very slow network: add the photo once it arrives
+    photoReady(p, 15000).then(late => {
+      if (!late || destMarker !== m) return;
+      m.getPopup().options.minWidth = late.w;
+      m.setPopupContent(popupHtml(p, late));
+      if (m.isPopupOpen()) m.openPopup();
+    });
+  }
+}
+
+function drawRoute(p) {                       // white edge + mint line, like a sat-nav route
+  if (routeLine) map.removeLayer(routeLine);
+  routeLine = L.layerGroup([
+    L.polyline(p.path, { color: "#FFFFFF", weight: 10, opacity: .95, lineCap: "round", lineJoin: "round", interactive: false }),
+    L.polyline(p.path, { color: "#1FBFA3", weight: 6, opacity: .95, lineCap: "round", lineJoin: "round", interactive: false }),
+    L.polyline(p.path, { color: "#FFFFFF", weight: 2, opacity: .9, dashArray: "2 12", lineCap: "round", interactive: false })
+  ]).addTo(map);
+}
+
+let resizeTimer = null;
+function refreshMap() { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => map.invalidateSize(), 160); }
+function sizeLayout() {
+  const root = document.documentElement.style, side = $("side");
+  if (isNarrow()) {
+    root.setProperty("--map-h", Math.round(Math.min(560, Math.max(320, window.innerHeight * 0.55))) + "px");
+    side.style.height = "";
+  } else {
+    const mapTop = $("map").getBoundingClientRect().top + window.scrollY;
+    root.setProperty("--map-h", Math.round(Math.min(820, Math.max(440, window.innerHeight - mapTop - 16))) + "px");
+    side.style.height = "";                                           // phrase groups fold, so the column sizes itself
+  }
+  refreshMap();
+}
+window.addEventListener("resize", sizeLayout);
+window.addEventListener("orientationchange", sizeLayout);
+
+// =====================================================================
+// DESTINATIONS + DESTINATION CARD
+// =====================================================================
+function renderChips() {
+  const v = visitedSet(walk());
+  $("destGrid").innerHTML = walk().places.map((p, i) =>
+    `<button type="button" class="dest" data-i="${i}" aria-pressed="${current === p}"><span class="tag k-${p.kind}"></span>${p.name}${v.has(p.name) ? ' <span class="tick">✓</span>' : ""}</button>`).join("")
+    + `<button type="button" class="dest random" id="randomBtn">🎲 Surprise me</button>`;
+  $("destGrid").querySelectorAll(".dest[data-i]").forEach(b => {
+    b.addEventListener("pointerenter", () => preloadPlace(walk().places[+b.dataset.i]));
+    b.addEventListener("click", () => choosePlace(+b.dataset.i));
+  });
+  $("randomBtn").addEventListener("click", () => {
+    const v = visitedSet(walk());
+    let pool = walk().places.map((_, i) => i).filter(i => walk().places[i] !== current && !v.has(walk().places[i].name));
+    if (!pool.length) pool = walk().places.map((_, i) => i).filter(i => walk().places[i] !== current);
+    choosePlace(pool[Math.floor(Math.random() * pool.length)]);
+  });
+}
+
+function markVisited(p) {
+  const v = visitedSet(walk()); if (v.has(p.name)) return;
+  const before = walkDone(walk());
+  v.add(p.name); saved.visited[walk().id] = [...v]; save();
+  if (!before && walkDone(walk())) toast("🎉 " + walk().name + " walk complete!");
+  renderProgress();
+}
+
+const placeInfo = p => `
+  <div class="dc-top"><div>
+    <div class="dc-head"><h3 class="dc-name">${p.name}</h3><span class="badge ${p.diff}">${p.diff}</span></div>
+    <p class="dc-fact">${p.fact}</p>
+    <div class="stats"><span class="stat">≈ ${fmtDist(p.walk)}</span><span class="stat">≈ ${fmtTime(p.walk)}</span></div>
+  </div></div>`;
+
+function highlight(p) {                       // mark the route's key words in the example text
+  let t = p.dir;
+  [...(p.keys || [])].sort((a, b) => b.length - a.length).forEach(k => {
+    const re = new RegExp("(^|[^<\\w])(" + k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")(?![^<]*</mark>)", "i");
+    t = t.replace(re, "$1<mark>$2</mark>");
+  });
+  return t;
+}
+const exampleBox = p => `<div class="example"><b>Example directions</b>${highlight(p)}</div>`;
+
+// --- Walk it: a walker moves along the route, one sentence at a time ---
+const stepsOf = p => p.dir.split(/(?<=[.!?])\s+/).filter(Boolean);
+let walk$ = null;          // { p, steps, idx, playing, marker, raf, timer }
+function routeLengths(path) { const d = [0]; for (let i = 1; i < path.length; i++) d.push(d[i - 1] + metres(path[i - 1], path[i])); return d; }
+function pointAt(path, cum, dist) {
+  for (let i = 1; i < path.length; i++) if (cum[i] >= dist) {
+    const t = (dist - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1);
+    return [path[i - 1][0] + (path[i][0] - path[i - 1][0]) * t, path[i - 1][1] + (path[i][1] - path[i - 1][1]) * t];
+  }
+  return path[path.length - 1];
+}
+function renderWalk() {
+  const w = walk$ && walk$.p === current ? walk$ : null, idx = w ? w.idx : -1, steps = stepsOf(current);
+  return `<div class="walkbox">
+    <ol class="walk-steps">${steps.map((t, i) => `<li class="${i === idx ? "now" : i < idx ? "done" : ""}">${t}</li>`).join("")}</ol>
+    <div class="row">
+      <button type="button" class="btn solid" id="walkPlay">${w && w.playing ? "⏸ Pause" : idx >= steps.length - 1 && idx >= 0 ? "↺ Walk again" : idx >= 0 ? "▶ Continue" : "▶ Walk the route"}</button>
+      <button type="button" class="btn soft" id="walkNext" ${idx >= steps.length - 1 ? "disabled" : ""}>Next step →</button>
+      <label class="read-aloud"><input type="checkbox" id="walkVoice" ${walkVoice ? "checked" : ""}> Read aloud</label>
+    </div>
+  </div>`;
+}
+let walkVoice = true;
+function ensureWalk() {
+  if (walk$ && walk$.p === current) return walk$;
+  stopWalk();
+  const p = current, cum = routeLengths(p.path);
+  const marker = L.marker(p.path[0], { icon: L.divIcon({ className: "", html: '<div class="walker">🚶</div>', iconSize: [34, 34], iconAnchor: [17, 17] }), zIndexOffset: 1200, interactive: false }).addTo(map);
+  walk$ = { p, steps: stepsOf(p), idx: -1, playing: false, marker, cum, total: cum[cum.length - 1] };
+  return walk$;
+}
+function goStep(i, then) {                    // walk the i-th part of the route while showing (and reading) its sentence
+  const w = walk$; w.idx = i; renderDestCard();
+  const n = w.steps.length, from = w.total * i / n, to = w.total * (i + 1) / n;
+  const dur = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 2600, t0 = performance.now();
+  if (walkVoice) speak(w.steps[i], 0.9);
+  cancelAnimationFrame(w.raf);
+  const tick = now => {
+    const k = dur ? Math.min(1, (now - t0) / dur) : 1;
+    w.marker.setLatLng(pointAt(w.p.path, w.cum, from + (to - from) * k));
+    if (k < 1) w.raf = requestAnimationFrame(tick);
+    else if (then) w.timer = setTimeout(then, walkVoice ? 1400 : 500);
+  };
+  w.raf = requestAnimationFrame(tick);
+}
+function autoWalk() {
+  const w = walk$; if (!w || !w.playing) return;
+  if (w.idx >= w.steps.length - 1) { w.playing = false; renderDestCard(); toast("🚶 You have arrived at " + w.p.name + "!"); return; }
+  goStep(w.idx + 1, autoWalk);
+}
+function stopWalk() {
+  if (!walk$) return;
+  cancelAnimationFrame(walk$.raf); clearTimeout(walk$.timer);
+  if (walk$.marker) map.removeLayer(walk$.marker);
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  walk$ = null;
+}
+function bindWalk() {
+  $("walkPlay").addEventListener("click", () => {
+    let w = walk$ && walk$.p === current ? walk$ : null;
+    if (w && w.playing) { w.playing = false; clearTimeout(w.timer); renderDestCard(); return; }
+    if (w && w.idx >= w.steps.length - 1) { stopWalk(); w = null; }
+    w = ensureWalk(); w.playing = true; autoWalk();
+  });
+  $("walkNext").addEventListener("click", () => {
+    const w = ensureWalk(); w.playing = false; clearTimeout(w.timer); goStep(w.idx + 1);
+  });
+  $("walkVoice").addEventListener("change", e => { walkVoice = e.target.checked; });
+}
+
+// --- Gap-fill: key verbs and prepositions removed from the example ---
+const GAP_WORDS = ["along", "past", "until", "through", "into", "across", "opposite", "towards", "straight", "left", "right", "up", "cross", "turn", "walk", "keep", "stay", "follow", "reach"];
+let gap = null;            // { name, parts, answers, values, checked }
+const GAP_PREPS = ["along", "past", "until", "through", "into", "across", "opposite", "towards", "up"];
+function initGap(p) {
+  const re = new RegExp("\\b(" + GAP_WORDS.join("|") + ")\\b", "gi"), found = []; let m;
+  while ((m = re.exec(p.dir))) {
+    const before = p.dir.slice(0, m.index).trimEnd();
+    const startOfSentence = !before || /[.!?]$/.test(before);
+    if (/^[A-Z]/.test(m[0]) && !startOfSentence) continue;        // part of a street name, e.g. Birdcage Walk
+    found.push({ i: m.index, w: m[0], prep: GAP_PREPS.includes(m[0].toLowerCase()) });
+  }
+  // prepositions first, then verbs, at most 7 gaps, back in text order
+  const pick = [...found.filter(f => f.prep), ...found.filter(f => !f.prep)].slice(0, 7).sort((a, b) => a.i - b.i);
+  const parts = [], answers = []; let last = 0;
+  pick.forEach(f => { parts.push(p.dir.slice(last, f.i)); answers.push(f.w); last = f.i + f.w.length; });
+  parts.push(p.dir.slice(last));
+  gap = { name: p.name, parts, answers, values: answers.map(() => ""), checked: false };
+}
+function renderGap() {
+  if (!gap || gap.name !== current.name) initGap(current);
+  const g = gap, bank = [...new Set(g.answers.map(a => a.toLowerCase()))].sort();
+  const score = g.checked ? g.answers.filter((a, i) => g.values[i].trim().toLowerCase() === a.toLowerCase()).length : 0;
+  let html = "";
+  g.parts.forEach((t, i) => {
+    html += t;
+    if (i < g.answers.length) {
+      const ok = g.values[i].trim().toLowerCase() === g.answers[i].toLowerCase();
+      html += `<input class="gap ${g.checked ? (ok ? "right" : "wrong") : ""}" data-gap="${i}" value="${g.values[i]}" size="${Math.max(5, g.answers[i].length + 1)}" aria-label="Gap ${i + 1}" autocomplete="off" spellcheck="false">`;
+    }
+  });
+  return `<div class="gapbox">
+    <p class="gap-help">Fill the gaps with these words:</p>
+    <div class="gap-bank">${bank.map(w => `<span>${w}</span>`).join("")}</div>
+    <p class="gap-text">${html}</p>
+    <div class="row">
+      <button type="button" class="btn solid" id="gapCheck">Check</button>
+      <button type="button" class="btn soft" id="gapShow">Show answers</button>
+      <button type="button" class="btn soft" id="gapReset">Clear</button>
+    </div>
+    ${g.checked ? `<div class="result ${score === g.answers.length ? "good" : "bad"}">${score === g.answers.length ? "✓ All correct!" : `${score} of ${g.answers.length} correct. Fix the pink gaps and check again.`}</div>` : ""}
+  </div>`;
+}
+function bindGap() {
+  const el = $("destCard");
+  el.querySelectorAll("[data-gap]").forEach(inp => {
+    inp.addEventListener("input", () => { gap.values[+inp.dataset.gap] = inp.value; });
+    inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("gapCheck").click(); } });
+  });
+  $("gapCheck").addEventListener("click", () => { gap.checked = true; renderDestCard(); });
+  $("gapShow").addEventListener("click", () => { gap.values = [...gap.answers]; gap.checked = true; renderDestCard(); });
+  $("gapReset").addEventListener("click", () => { initGap(current); renderDestCard(); });
+}
+
+// --- Route order ---
+let order = null;          // { steps, pool, ans, checked }
+function initOrder(p) {
+  const steps = p.dir.split(/(?<=[.!?])\s+/).filter(Boolean);
+  let pool = steps.map((_, i) => i);
+  do { pool.sort(() => Math.random() - .5); } while (steps.length > 1 && pool.every((v, i) => v === i));
+  order = { steps, pool, ans: [], checked: false };
+}
+function renderOrder() {
+  const o = order, right = o.checked ? o.ans.filter((v, i) => v === i).length : 0;
+  return `<div class="order">
+    <h4>Put the route in order</h4>
+    <ol class="order-ans">${o.ans.map((v, i) => `<li><button type="button" class="step ${o.checked ? (v === i ? "right" : "wrong") : ""}" data-ans="${i}">${o.steps[v]}</button></li>`).join("")
+      || `<li class="order-empty">Tap the first step below.</li>`}</ol>
+    ${o.pool.length ? `<div class="order-pool">${o.pool.map(v => `<button type="button" class="step" data-pool="${v}">${o.steps[v]}</button>`).join("")}</div>` : ""}
+    <div class="row">
+      <button type="button" class="btn solid" id="orderCheck" ${o.pool.length ? "disabled" : ""}>Check the order</button>
+      <button type="button" class="btn soft" id="orderReset">Mix again</button>
+    </div>
+    ${o.checked ? `<div class="result ${right === o.steps.length ? "good" : "bad"}">${right === o.steps.length ? "✓ Perfect! Every step is in the right place." : `${right} of ${o.steps.length} steps are in the right place. Tap a pink step to send it back and try again.`}</div>` : ""}
+  </div>`;
+}
+function bindOrder() {
+  const el = $("destCard");
+  el.querySelectorAll("[data-pool]").forEach(b => b.addEventListener("click", () => {
+    const v = +b.dataset.pool; order.pool = order.pool.filter(x => x !== v); order.ans.push(v); order.checked = false; renderDestCard();
+  }));
+  el.querySelectorAll("[data-ans]").forEach(b => b.addEventListener("click", () => {
+    const i = +b.dataset.ans; order.pool.push(order.ans[i]); order.ans.splice(i, 1); order.checked = false; renderDestCard();
+  }));
+  $("orderCheck").addEventListener("click", () => {
+    order.checked = true; renderDestCard();
+    if (order.ans.every((v, i) => v === i)) toast("✓ Route in the right order!");
+  });
+  $("orderReset").addEventListener("click", () => { initOrder(current); renderDestCard(); });
+}
+
+function renderFromTo() {
+  const p = isPick(mode) ? current : (solved ? target : null);
+  $("ftTo").innerHTML = p ? `<b class="ft-place">${p.name}</b>` : (isPick(mode) ? `<span class="ft-empty">choose a place</span>` : `<span class="ft-empty">the mystery place ?</span>`);
+}
+function renderDestCard() {
+  renderFromTo();
+  renderKeys();
+  const el = $("destCard");
+  if (mode === "gap") {
+    if (!current) {
+      el.innerHTML = `<p class="empty"><b>Choose a destination</b> above the map. Its directions appear here with words missing.<span class="hu-text">Válassz úti célt – az útbaigazítás hiányos szöveggel jelenik meg.</span></p>`;
+      return;
+    }
+    el.innerHTML = placeInfo(current) + renderGap();
+    bindGap();
+    return;
+  }
+  if (mode === "order") {
+    if (!current) {
+      el.innerHTML = `<p class="empty"><b>Choose a destination</b> above the map. Its directions appear here as mixed-up steps.<span class="hu-text">Válassz úti célt – az útbaigazítás lépései összekeverve jelennek meg.</span></p>`;
+      return;
+    }
+    if (!order || order.name !== current.name) { initOrder(current); order.name = current.name; }
+    el.innerHTML = placeInfo(current) + renderOrder();
+    bindOrder();
+    return;
+  }
+  if (isPick(mode)) {
+    if (!current) {
+      el.innerHTML = `<p class="empty"><b>Choose a destination</b> above the map, or tap a coloured dot on the map. Its picture card and example directions appear here.<span class="hu-text">Válassz úti célt a térkép fölött, vagy kattints egy színes pontra a térképen!</span></p>`;
+      return;
+    }
+    const tab = (id, label) => `<button type="button" class="ptab ${panel === id ? "on" : ""}" data-panel="${id}" aria-pressed="${panel === id}">${label}</button>`;
+    el.innerHTML = placeInfo(current) + `
+      <div class="ptabs" role="group" aria-label="Practice tools">
+        ${tab("example", "📖 Example")}${tab("walk", "🚶 Walk it")}${tab("gap", "✎ Gap-fill")}
+      </div>
+      ${panel === "example" ? exampleBox(current) + `<div class="row"><button type="button" class="btn" id="exListen">🔊 Listen</button></div>` : ""}
+      ${panel === "walk" ? renderWalk() : ""}
+      ${panel === "gap" ? renderGap() : ""}`;
+    el.querySelectorAll("[data-panel]").forEach(b => b.addEventListener("click", () => {
+      stopWalk(); panel = panel === b.dataset.panel ? null : b.dataset.panel; renderDestCard();
+    }));
+    if ($("exListen")) $("exListen").addEventListener("click", () => speak(current.dir));
+    if (panel === "walk") bindWalk();
+    if (panel === "gap") bindGap();
+    return;
+  }
+
+  const solvedHtml = solved ? `<div class="result good">✓ Well done! You found ${target.name}.</div>${placeInfo(target)}${exampleBox(target)}` : "";
+  const wrongHtml = !solved && wrongTries.size ? `<div class="result bad">Not quite. Try again – the grey dots are wrong.</div>` : "";
+
+  if (mode === "mystery") {
+    el.innerHTML = solved ? solvedHtml + `<button type="button" class="btn solid" id="newBtn">New mystery place</button>` : `
+      <div class="dc-top">
+      <ol class="steps-mini">
+        <li><b>Student B:</b> open the secret card. Don't show it!</li>
+        <li><b>Student B:</b> give directions from Buckingham Palace.</li>
+        <li><b>Student A:</b> follow on the map and tap the place.</li>
+      </ol></div>
+      <button type="button" class="btn pink" id="secretBtn">${secretOpen ? "Hide secret card" : "Student B: open secret card"}</button>
+      ${secretOpen ? `<div class="secret"><div class="dc-head"><h3 class="dc-name">${target.name}</h3><span class="badge ${target.diff}">${target.diff}</span></div>${exampleBox(target)}</div>` : ""}
+      ${wrongHtml}
+      <button type="button" class="btn soft" id="newBtn">Skip – new place</button>`;
+    if ($("secretBtn")) $("secretBtn").addEventListener("click", () => { secretOpen = !secretOpen; renderDestCard(); });
+  } else {
+    el.innerHTML = solved ? solvedHtml + `<button type="button" class="btn solid" id="newBtn">Next listening</button>` : `
+      <div class="dc-top">
+      <p class="empty">Press Play, follow the route from the green pin, then tap the place on the map.</p></div>
+      <div class="row">
+        <button type="button" class="btn solid" id="playBtn">▶ Play</button>
+        <button type="button" class="btn ${slow ? "pink" : "soft"}" id="slowBtn" aria-pressed="${slow}">${slow ? "Slow ✓" : "Slow"}</button>
+        <button type="button" class="btn soft" id="textBtn">${textOpen ? "Hide text" : "Show text"}</button>
+      </div>
+      ${textOpen ? `<div class="example"><b>Directions</b>${target.dir}</div>` : ""}
+      ${wrongHtml}
+      <button type="button" class="btn soft" id="newBtn">Skip – new place</button>`;
+    if ($("playBtn")) {
+      $("playBtn").addEventListener("click", () => speak(target.dir, slow ? 0.7 : 0.95));
+      $("slowBtn").addEventListener("click", () => { slow = !slow; renderDestCard(); });
+      $("textBtn").addEventListener("click", () => { textOpen = !textOpen; renderDestCard(); });
+    }
+  }
+  $("newBtn").addEventListener("click", newMystery);
+}
+
+function choosePlace(i) {
+  if (!isPick(mode)) return;
+  current = walk().places[i];
+  panel = null; stopWalk();
+  markVisited(current);
+  renderChips(); drawPlaces(); showRoute(current); renderDestCard();
+  if (isNarrow()) document.querySelector(".map-wrap").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function newMystery() {
+  const places = walk().places;
+  let pool = places.filter(p => p !== target);
+  target = pool[Math.floor(Math.random() * pool.length)];
+  solved = false; secretOpen = false; textOpen = false; wrongTries = new Set();
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  clearRoute(); drawPlaces(); fitWalk(); renderDestCard();
+}
+
+function guess(i) {
+  if (solved || !target) return;
+  const p = walk().places[i];
+  if (p === target) {
+    solved = true; markVisited(p); drawPlaces(); showRoute(p); toast("✓ Correct! " + p.name);
+  } else {
+    wrongTries.add(i); drawPlaces(); toast("Not " + p.name + ". Try again!");
+  }
+  renderDestCard();
+}
+
+// =====================================================================
+// MODES
+// =====================================================================
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll(".mode").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === m));
+  $("modeHelp").innerHTML = `<p class="start-note">★ All routes start at <b>Buckingham Palace</b>.</p>` + MODE_HELP[m][0].replace(/^<b>[^<]*<\/b>\s*/, "") + `<span class="hu-text">Minden útvonal a Buckingham-palotától indul. ${MODE_HELP[m][1]}</span>`;
+  $("modeHelpTitle").textContent = { practise: "Pair practice", order: "Route order", gap: "Gap-fill", mystery: "Where am I?", listen: "Listen & find" }[m];
+  $("chipsBlock").hidden = !isPick(m);
+  showPane("activity");
+  panel = null; stopWalk();
+  $("legend").hidden = !isPick(m);
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  clearRoute();
+  if (isPick(m)) { if (current) { drawPlaces(); showRoute(current); } else { drawPlaces(); fitWalk(); } renderDestCard(); }
+  else { target = null; newMystery(); }
+  sizeLayout();
+}
+document.querySelectorAll(".mode").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+
+// =====================================================================
+// ROLES, PHRASES, NOTES
+// =====================================================================
+$("swapBtn").addEventListener("click", () => { const a = $("askName"), b = $("giveName"); [a.textContent, b.textContent] = [b.textContent, a.textContent]; });
+
+const textarea = $("studentText");
+function prepPhrases(root) { root.querySelectorAll(".bank li").forEach(li => { li.setAttribute("role", "button"); li.tabIndex = 0; }); }
+prepPhrases(document);
+function addPhrase(li) {
+  let text = li.textContent;
+  if (li.closest("ul").dataset.fill === "1" && current && isPick(mode)) text = text.replace("…", current.name);
+  const sep = textarea.value && !/\s$/.test(textarea.value) ? " " : "";
+  textarea.value += sep + text + " ";
+  li.classList.add("added"); setTimeout(() => li.classList.remove("added"), 500);
+  if (!isNarrow()) textarea.focus();
+}
+$("phrasesScroll").addEventListener("click", e => { const li = e.target.closest(".bank li"); if (li) addPhrase(li); });
+$("phrasesScroll").addEventListener("keydown", e => {
+  const li = e.target.closest(".bank li");
+  if (li && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); addPhrase(li); }
+});
+
+// which of the route's key words appear in "Our directions"?
+const norm = t => t.toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, " ");
+function checkKeywords() {
+  const box = $("kwResult"), p = isPick(mode) ? current : (solved ? target : null);
+  box.hidden = false;
+  if (!p) { box.innerHTML = `<p>${isPick(mode) ? "Choose a destination first." : "Find the mystery place first."}</p>`; return; }
+  const text = norm(textarea.value);
+  if (!text.trim()) { box.innerHTML = "<p>Write or tap your directions first.</p>"; return; }
+  const used = p.keys.filter(k => text.includes(norm(k)));
+  const n = used.length, all = p.keys.length;
+  box.innerHTML = `<p>${n === all ? "🎉 Excellent! You used every key word." : `You used ${n} of ${all} key words for ${p.name}.`}</p>
+    <div class="kw-chips">${p.keys.map(k => `<span class="kw ${used.includes(k) ? "yes" : "no"}">${used.includes(k) ? "✓" : "✗"} ${k}</span>`).join("")}</div>`;
+}
+$("kwCheck").addEventListener("click", checkKeywords);
+
+function renderKeys() {
+  $("kwResult").hidden = true;
+  const kp = isPick(mode) ? current : (solved ? target : null);
+  $("exprBadge").hidden = !kp;
+  if (kp) { $("exprBadge").textContent = "+" + kp.keys.length; $("exprBadge").title = kp.keys.length + " key words for this route"; }
+  const p = isPick(mode) ? current : (solved ? target : null);
+  const list = $("keysList");
+  if (p) {
+    $("keysTitle").textContent = "Key words: " + p.name;
+    $("keysCount").textContent = p.keys.length;
+    list.innerHTML = p.keys.map(k => `<li>${k}</li>`).join("");
+    prepPhrases(list.parentElement);
+  } else {
+    $("keysTitle").textContent = "Key words for this route";
+    $("keysCount").textContent = "–";
+    list.innerHTML = `<p class="keys-empty">${isPick(mode) ? "Choose a destination to see the key words for its route." : "Find the mystery place first. Then its key words appear here."}</p>`;
+  }
+}
+
+const clearBtn = $("clearText"); let clearTimer = null;
+clearBtn.addEventListener("click", () => {
+  if (!textarea.value.trim()) return;
+  if (clearBtn.classList.contains("confirm")) { textarea.value = ""; clearBtn.classList.remove("confirm"); clearBtn.textContent = "Clear"; clearTimeout(clearTimer); return; }
+  clearBtn.classList.add("confirm"); clearBtn.textContent = "Tap again to clear";
+  clearTimer = setTimeout(() => { clearBtn.classList.remove("confirm"); clearBtn.textContent = "Clear"; }, 3000);
+});
+
+// =====================================================================
+// QUIZ
+// =====================================================================
+let answers = [], qIdx = 0;
+function quizFinished() { return walk().quiz.every((_, i) => answers[i] != null); }
+function renderQuiz() {
+  const qs = walk().quiz, n = qs.length;
+  $("qDots").innerHTML = qs.map((q, i) => {
+    const a = answers[i], cls = a == null ? "" : a === q[2] ? "right" : "wrong";
+    return `<button type="button" class="${cls} ${i === qIdx ? "cur" : ""}" data-i="${i}" aria-label="Question ${i + 1}">${i + 1}</button>`;
+  }).join("");
+  $("qDots").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { qIdx = +b.dataset.i; renderQuiz(); }));
+
+  if (qIdx >= n) {                                        // score page
+    const right = answers.filter((a, i) => a === qs[i][2]).length;
+    $("quiz").innerHTML = `<div class="q-card">
+        <span class="q-label">Your score</span>
+        <p class="score-big">${right} / ${n}</p>
+        <p class="q-note">${right >= 3 ? "Well done! " + (visitedSet(walk()).size < walk().places.length ? "Now practise all five places on the map to complete the walk." : "") : "Try again to get 3 or more right."}</p>
+      </div>
+      <div class="q-nav"><button type="button" class="btn soft" id="qBack">← Back</button><button type="button" class="btn solid" id="quizReset">Try again</button></div>`;
+    $("qBack").addEventListener("click", () => { qIdx = n - 1; renderQuiz(); });
+    $("quizReset").addEventListener("click", () => { answers = []; qIdx = 0; renderQuiz(); });
+    return;
+  }
+
+  const [q, opts, ok, note] = qs[qIdx], a = answers[qIdx];
+  const lastQ = qIdx === n - 1, unanswered = qs.filter((_, i) => answers[i] == null).length;
+  $("quiz").innerHTML = `<div class="q-card">
+      <span class="q-label">Question ${qIdx + 1} of ${n}</span>
+      <p class="q-text">${q}</p>
+      <div class="opts">${opts.map((o, j) =>
+        `<button type="button" class="opt ${a != null && j === ok ? "right" : ""} ${a === j && j !== ok ? "wrong" : ""}" data-o="${j}" ${a != null ? "disabled" : ""}>${o}</button>`).join("")}</div>
+      ${a != null ? `<div class="q-note">${a === ok ? "✓ Correct. " : "✗ Not quite. "}${note}</div>` : ""}
+    </div>
+    <div class="q-nav">
+      <button type="button" class="btn soft" id="qBack" ${qIdx === 0 ? "disabled" : ""}>← Back</button>
+      <button type="button" class="btn solid" id="qNext" ${lastQ && unanswered ? "disabled" : ""}>${lastQ ? (unanswered ? unanswered + " left to answer" : "See my score") : "Next →"}</button>
+    </div>`;
+  $("quiz").querySelectorAll(".opt:not(:disabled)").forEach(b => b.addEventListener("click", () => {
+    answers[qIdx] = +b.dataset.o;
+    if (quizFinished()) {
+      const score = qs.filter((x, i) => answers[i] === x[2]).length, before = walkDone(walk());
+      saved.quiz[walk().id] = Math.max(saved.quiz[walk().id] ?? 0, score); save();
+      if (!before && walkDone(walk())) toast("🎉 " + walk().name + " walk complete!");
+      renderProgress();
+    }
+    renderQuiz();
+  }));
+  $("qBack").addEventListener("click", () => { qIdx = Math.max(0, qIdx - 1); renderQuiz(); });
+  $("qNext").addEventListener("click", () => { qIdx = lastQ ? n : qIdx + 1; renderQuiz(); });
+}
+
+// =====================================================================
+// WALK SWITCHING + START
+// =====================================================================
+function setWalk(i) {
+  walkIdx = i;
+  document.querySelectorAll(".tab").forEach((t, j) => t.setAttribute("aria-selected", j === i));
+  current = null; target = null; answers = []; qIdx = 0; fcIdx = 0;
+  preloadPhotos();
+  $("fcTitle").textContent = "Flashcards · " + walk().name;
+  renderProgress(); renderCard(); renderChips(); renderQuiz();
+  setMode(mode);
+}
+
+setWalk(0);
+sizeLayout();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeLayout);
+</script>
+</body>
+</html>
